@@ -7,7 +7,7 @@ const config = {
 			fallback: 'index.html'
 		}),
 		alias: {
-			'@/*': './path/to/lib/*'
+			'@/*': './src/lib/*'
 		}
 	}
 };
