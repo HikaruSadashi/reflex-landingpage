@@ -14,6 +14,6 @@
 	</style>
 </svelte:head>
 
-<div class="min-h-screen bg-background text-foreground antialiased">
+<div class="grain min-h-screen bg-background text-foreground antialiased">
 	{@render children()}
 </div>
