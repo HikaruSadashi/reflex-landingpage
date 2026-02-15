@@ -3,6 +3,7 @@
 	import { goto } from '$app/navigation';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import ArrowUpDownIcon from '@lucide/svelte/icons/arrow-up-down';
+	import RotateCcw from '@lucide/svelte/icons/rotate-ccw';
 	import {
 		type ColumnDef,
 		type ColumnFiltersState,
@@ -49,7 +50,19 @@
 	};
 
 	const PROJECT_STORAGE_KEY = 'reflex.onboarding.projectName';
+	const REFLEX_STORAGE_PREFIX = 'reflex.';
 	const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'https://reflexbackend-r2rk.onrender.com';
+
+	function clearReflexStorageAndReload() {
+		if (typeof localStorage === 'undefined') return;
+		const keys: string[] = [];
+		for (let i = 0; i < localStorage.length; i++) {
+			const key = localStorage.key(i);
+			if (key?.startsWith(REFLEX_STORAGE_PREFIX)) keys.push(key);
+		}
+		for (const key of keys) localStorage.removeItem(key);
+		window.location.href = '/incidents';
+	}
 
 	let projectName = $state('Project');
 	let rows = $state<IncidentRow[]>([]);
@@ -423,6 +436,10 @@
 							{/each}
 						</DropdownMenu.Content>
 					</DropdownMenu.Root>
+					<Button variant="outline" onclick={clearReflexStorageAndReload} title="Clear all Reflex data from this device (local storage) and reload. Tables stay; saved reasoning, actions, and post mortem state are cleared.">
+						<RotateCcw class="size-4" />
+						Clear data
+					</Button>
 				</div>
 
 				<div class="mb-4 flex flex-wrap items-center gap-2">
