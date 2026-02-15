@@ -273,7 +273,7 @@
 			] as label, i}
 				<div
 					use:reveal={i * 80}
-					class="group flex items-center border border-[rgba(255,255,255,0.04)] px-5 py-4 transition-all duration-300 hover:border-primary/20 hover:bg-[rgba(255,79,0,0.02)]"
+					class="group flex items-center border border-[rgba(255,255,255,0.04)] px-5 py-4 transition-all duration-300 hover:border-primary/20 hover:bg-[rgba(161,92,168,0.02)]"
 				>
 					<span class="mr-3 inline-block size-1.5 bg-muted-foreground/30 transition-colors duration-300 group-hover:bg-primary"></span>
 					<span class="text-sm text-muted-foreground transition-colors duration-300 group-hover:text-foreground">{label}</span>
