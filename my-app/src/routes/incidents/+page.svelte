@@ -91,24 +91,24 @@
 	function statusClass(status: string) {
 		switch (status.toLowerCase()) {
 			case 'triggered':
-				return 'text-red-500';
+				return 'border-red-500/40 bg-red-500/10 text-red-500';
 			case 'resolved':
-				return 'text-green-500';
+				return 'border-green-500/40 bg-green-500/10 text-green-500';
 			default:
-				return 'text-foreground';
+				return 'border-border bg-muted/30 text-foreground';
 		}
 	}
 
 	function severityClass(severity: string) {
 		switch (severity.toLowerCase()) {
 			case 'critical':
-				return 'text-red-500';
+				return 'border-red-500/40 bg-red-500/10 text-red-500';
 			case 'warn':
-				return 'text-amber-500';
+				return 'border-amber-500/40 bg-amber-500/10 text-amber-500';
 			case 'info':
-				return 'text-sky-400';
+				return 'border-sky-500/40 bg-sky-500/10 text-sky-400';
 			default:
-				return 'text-foreground';
+				return 'border-border bg-muted/30 text-foreground';
 		}
 	}
 
@@ -164,7 +164,10 @@
 			cell: ({ row }) => {
 				const snippet = createRawSnippet<[{ status: string; className: string }]>((getData) => {
 					const { status, className } = getData();
-					return { render: () => `<div class="${className}">${status}</div>` };
+					return {
+						render: () =>
+							`<span class="inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium ${className}">${status}</span>`
+					};
 				});
 				return renderSnippet(snippet, {
 					status: capitalize(row.original.status),
@@ -178,7 +181,10 @@
 			cell: ({ row }) => {
 				const snippet = createRawSnippet<[{ severity: string; className: string }]>((getData) => {
 					const { severity, className } = getData();
-					return { render: () => `<div class="${className}">${severity}</div>` };
+					return {
+						render: () =>
+							`<span class="inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium ${className}">${severity}</span>`
+					};
 				});
 				return renderSnippet(snippet, {
 					severity: capitalize(row.original.severity),
