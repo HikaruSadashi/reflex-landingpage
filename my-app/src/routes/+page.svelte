@@ -1,14 +1,63 @@
 <script>
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
-	import { Play, ArrowRight } from '@lucide/svelte';
+	import { Play, ArrowRight, Check, Loader2 } from '@lucide/svelte';
 	import { onMount } from 'svelte';
 	import { gsap } from 'gsap';
+	import { toast } from 'svelte-sonner';
 	import ImgReveal from '$lib/ImgReveal.svelte';
 
 	let email = $state('');
+	let submitting = $state(false);
+	let submitted = $state(false);
 	let cursorElement;
 	let cursorText;
+
+	async function handleWaitlistSubmit(e) {
+		e.preventDefault();
+		if (!email.trim() || submitting) return;
+
+		submitting = true;
+		try {
+			const res = await fetch('https://reflexbackend-r2rk.onrender.com/waitlist', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					email: email.trim(),
+					source: 'landing-page'
+				})
+			});
+
+			const data = await res.json();
+
+			if (res.ok) {
+				submitted = true;
+				if (data.already_exists) {
+					toast.success("You're already on the list!", {
+						description: "We'll be in touch soon with early access."
+					});
+				} else {
+					toast.success("You're in!", {
+						description: "We'll notify you when early access is ready."
+					});
+				}
+			} else if (res.status === 400) {
+				toast.error('Invalid email', {
+					description: data.error || 'Please enter a valid email address.'
+				});
+			} else {
+				toast.error('Something went wrong', {
+					description: 'Please try again in a moment.'
+				});
+			}
+		} catch {
+			toast.error('Network error', {
+				description: 'Could not reach the server. Please try again.'
+			});
+		} finally {
+			submitting = false;
+		}
+	}
 
 	onMount(() => {
 		initCursor();
@@ -171,7 +220,7 @@
 			class="hero-enter mt-3 text-xs tracking-widest text-muted-foreground uppercase"
 			style="animation-delay: 0.42s"
 		>
-			Production systems with <ImgReveal src="/cat.gif"><span class="text-primary cursor-pointer transition-colors duration-300 hover:text-primary/80">reflexes</span></ImgReveal>
+			Production systems with <ImgReveal src="/cat.gif"><span class="text-primary cursor-pointer transition-colors duration-300 hover:text-primary/80">reflexes</span></ImgReveal> and <ImgReveal src="/bigbrain.gif"><span class="text-primary cursor-pointer transition-colors duration-300 hover:text-primary/80">memory</span></ImgReveal>
 		</p>
 
 		<!-- Buttons -->
@@ -415,28 +464,45 @@
 			Turn outages into intelligence.
 		</p>
 
-		<form
-			use:reveal={200}
-			class="mx-auto flex max-w-md gap-2"
-			onsubmit={(e) => {
-				e.preventDefault();
-			}}
-		>
-			<Input
-				type="email"
-				placeholder="you@company.com"
-				bind:value={email}
-				class="h-11 flex-1 rounded-none border-[rgba(255,255,255,0.08)] bg-transparent text-sm placeholder:text-muted-foreground/40 focus-visible:border-primary/40 focus-visible:ring-primary/10"
-			/>
-			<Button
-				type="submit"
-				size="lg"
-				class="h-11 rounded-none bg-primary px-6 text-xs uppercase tracking-widest text-primary-foreground hover:bg-primary/85"
-				data-cursor="Submit"
+		{#if submitted}
+			<div use:reveal={0} class="mx-auto flex max-w-md flex-col items-center gap-4">
+				<div class="flex size-12 items-center justify-center border border-primary/20 bg-primary/5">
+					<Check class="size-5 text-primary" />
+				</div>
+				<p class="text-sm text-muted-foreground">
+					You're on the list. We'll reach out when it's your turn.
+				</p>
+			</div>
+		{:else}
+			<form
+				use:reveal={200}
+				class="mx-auto flex max-w-md gap-2"
+				onsubmit={handleWaitlistSubmit}
 			>
-				Join waitlist
-			</Button>
-		</form>
+				<Input
+					type="email"
+					placeholder="you@company.com"
+					bind:value={email}
+					required
+					disabled={submitting}
+					class="h-11 flex-1 rounded-none border-[rgba(255,255,255,0.08)] bg-transparent text-sm placeholder:text-muted-foreground/40 focus-visible:border-primary/40 focus-visible:ring-primary/10"
+				/>
+				<Button
+					type="submit"
+					size="lg"
+					disabled={submitting}
+					class="h-11 rounded-none bg-primary px-6 text-xs uppercase tracking-widest text-primary-foreground hover:bg-primary/85"
+					data-cursor="Submit"
+				>
+					{#if submitting}
+						<Loader2 class="size-4 animate-spin" />
+						Joining...
+					{:else}
+						Join waitlist
+					{/if}
+				</Button>
+			</form>
+		{/if}
 
 		<p use:reveal={300} class="mt-6 text-[0.65rem] tracking-[0.15em] text-muted-foreground uppercase">
 			No spam. Early access only.
