@@ -1,5 +1,6 @@
 <script>
 	import { browser } from '$app/environment';
+	import { goto } from '$app/navigation';
 	import { onMount } from 'svelte';
 	import * as Stepper from '$lib/components/ui/stepper';
 	import * as Choicebox from '$lib/components/ui/choicebox';
@@ -18,18 +19,20 @@
 
 	const NAME_STORAGE_KEY = 'reflex.onboarding.name';
 	const EMAIL_STORAGE_KEY = 'reflex.onboarding.email';
+	const PROJECT_STORAGE_KEY = 'reflex.onboarding.projectName';
 
 	let currentStep = $state(0);
 	let name = $state('');
 	let email = $state('');
 	let connectedSources = $state([]);
 	let triggerText = $state('');
-	let setupComplete = $state(false);
+	let projectName = $state('');
 
 	const steps = [
 		{ label: 'Login' },
 		{ label: 'Connect sources' },
-		{ label: 'Create triggers' }
+		{ label: 'Create triggers' },
+		{ label: 'Project name' }
 	];
 
 	const triggerExample =
@@ -64,20 +67,24 @@
 	onMount(() => {
 		const storedName = localStorage.getItem(NAME_STORAGE_KEY);
 		const storedEmail = localStorage.getItem(EMAIL_STORAGE_KEY);
+		const storedProject = localStorage.getItem(PROJECT_STORAGE_KEY);
 		if (storedName) name = storedName;
 		if (storedEmail) email = storedEmail;
+		if (storedProject) projectName = storedProject;
 	});
 
 	$effect(() => {
 		if (browser) {
 			localStorage.setItem(NAME_STORAGE_KEY, name);
 			localStorage.setItem(EMAIL_STORAGE_KEY, email);
+			localStorage.setItem(PROJECT_STORAGE_KEY, projectName);
 		}
 	});
 
 	const canContinueFromLogin = $derived(name.trim().length > 0 && email.trim().length > 0);
 	const hasConnectedSource = $derived(connectedSources.length > 0);
-	const canFinish = $derived(triggerText.trim().length > 0);
+	const canContinueFromTriggers = $derived(triggerText.trim().length > 0);
+	const canFinish = $derived(projectName.trim().length > 0);
 
 	function goNext() {
 		if (currentStep < steps.length - 1) currentStep += 1;
@@ -87,8 +94,8 @@
 		if (currentStep > 0) currentStep -= 1;
 	}
 
-	function handleFinish() {
-		setupComplete = true;
+	async function handleFinish() {
+		await goto('/alerts');
 	}
 
 	function fillExampleTrigger() {
@@ -101,7 +108,7 @@
 		<header class="space-y-4">
 			<p class="text-muted-foreground text-xs uppercase tracking-[0.2em]">Reflex onboarding</p>
 			<h1 class="text-3xl font-semibold tracking-tight">Quick setup</h1>
-			<p class="text-muted-foreground text-sm leading-relaxed">Set up your incident workflow in three steps.</p>
+			<p class="text-muted-foreground text-sm leading-relaxed">Set up your incident workflow in four steps.</p>
 		</header>
 
 		<Stepper.Root bind:value={currentStep} class="py-4">
@@ -119,16 +126,7 @@
 		</Stepper.Root>
 
 		<section class="bg-card border-border rounded-xl border p-8 md:p-12 min-h-[480px]">
-			{#if setupComplete}
-				<div class="space-y-8">
-					<div class="flex items-center gap-2">
-						<CheckCircle2 class="text-primary size-5" />
-						<h2 class="text-xl font-semibold">Onboarding complete</h2>
-					</div>
-					<p class="text-muted-foreground text-sm leading-relaxed">You are set, {name}. Your first trigger is ready for review.</p>
-					<Button onclick={() => (setupComplete = false)} variant="outline">Review setup</Button>
-				</div>
-			{:else if currentStep === 0}
+			{#if currentStep === 0}
 				<div class="space-y-12">
 					<div class="space-y-3">
 						<h2 class="text-xl font-semibold">Login</h2>
@@ -170,7 +168,7 @@
 						{/each}
 					</Choicebox.Root>
 				</div>
-			{:else}
+			{:else if currentStep === 2}
 				<div class="space-y-12">
 					<div class="space-y-3">
 						<h2 class="text-xl font-semibold">Create triggers</h2>
@@ -197,6 +195,30 @@
 						</div>
 					</div>
 				</div>
+			{:else}
+				<div class="space-y-12">
+					<div class="space-y-3">
+						<h2 class="text-xl font-semibold">Project name</h2>
+						<p class="text-muted-foreground text-sm leading-relaxed">Name this project before finishing setup.</p>
+					</div>
+
+					<div class="border-border bg-background/40 rounded-xl border p-7 md:p-10">
+						<p class="text-muted-foreground mb-4 text-xs uppercase tracking-[0.2em]">Live preview</p>
+						<div class="flex min-h-20 items-center">
+							<h3 class="text-4xl font-semibold tracking-tight md:text-6xl">{projectName || 'reflex-prod-core'}<span class="bg-primary cursor-blink ml-1 inline-block h-[0.95em] w-[3px] translate-y-[0.08em] align-baseline"></span></h3>
+						</div>
+					</div>
+
+					<div class="space-y-4">
+						<label for="project-name" class="text-sm font-medium">Project name</label>
+						<Input
+							id="project-name"
+							bind:value={projectName}
+							placeholder="reflex-prod-core"
+							class="h-11"
+						/>
+					</div>
+				</div>
 			{/if}
 		</section>
 
@@ -209,7 +231,11 @@
 			{#if currentStep < steps.length - 1}
 				<Button
 					onclick={goNext}
-					disabled={(currentStep === 0 && !canContinueFromLogin) || (currentStep === 1 && !hasConnectedSource)}
+					disabled={
+						(currentStep === 0 && !canContinueFromLogin) ||
+						(currentStep === 1 && !hasConnectedSource) ||
+						(currentStep === 2 && !canContinueFromTriggers)
+					}
 				>
 					Continue
 					<ArrowRight class="size-4" />
