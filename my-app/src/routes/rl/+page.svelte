@@ -2,8 +2,9 @@
 	import { onMount } from 'svelte';
 	import * as Table from '$lib/components/ui/table/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
+	import * as Dialog from '$lib/components/ui/dialog/index.js';
 	import { Spinner } from '$lib/components/ui/spinner/index.js';
-	import { ArrowLeft } from '@lucide/svelte';
+	import { ArrowLeft, Play } from '@lucide/svelte';
 
 	type RlRecord = {
 		id: string;
@@ -14,9 +15,17 @@
 		recorded_at: string;
 	};
 
+	const TRAIN_BASE =
+		import.meta.env.VITE_API_BASE_URL ?? 'https://reflexbackend-r2rk.onrender.com';
+
 	let records = $state<RlRecord[]>([]);
 	let loading = $state(true);
 	let error = $state('');
+	let trainDialogOpen = $state(false);
+	let trainSubmitting = $state(false);
+	let trainError = $state('');
+	let jobId = $state<string | null>(null);
+	let jobStatus = $state<string | null>(null);
 
 	function formatTime(iso: string) {
 		try {
@@ -44,6 +53,63 @@
 		}
 	}
 
+	async function startTraining() {
+		trainSubmitting = true;
+		trainError = '';
+		jobId = null;
+		jobStatus = null;
+		try {
+			const res = await fetch(`${TRAIN_BASE}/train`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ dataset_snapshot: records })
+			});
+			const data = await res.json().catch(() => ({}));
+			if (
+				res.status === 501 ||
+				res.status === 503 ||
+				data.error === 'not_implemented' ||
+				data.error === 'modal_not_configured'
+			) {
+				trainError = 'not_implemented';
+				return;
+			}
+			if (!res.ok) {
+				trainError = data.message ?? data.error ?? 'Failed to start training';
+				return;
+			}
+			jobId = data.job_id ?? null;
+			jobStatus = data.status ?? 'pending';
+			if (jobId && jobStatus === 'pending') pollJobStatus(jobId);
+		} catch (e) {
+			trainError = e instanceof Error ? e.message : 'Request failed';
+		} finally {
+			trainSubmitting = false;
+		}
+	}
+
+	async function pollJobStatus(id: string) {
+		try {
+			const res = await fetch(`${TRAIN_BASE}/train/${id}`);
+			if (!res.ok) return;
+			const data = await res.json();
+			if (data.error === 'not_implemented') return;
+			jobStatus = data.status ?? jobStatus;
+			if (data.status === 'pending' || data.status === 'running') {
+				setTimeout(() => pollJobStatus(id), 2000);
+			}
+		} catch {
+			// ignore
+		}
+	}
+
+	function closeTrainDialog() {
+		trainDialogOpen = false;
+		trainError = '';
+		jobId = null;
+		jobStatus = null;
+	}
+
 	onMount(() => {
 		void load();
 	});
@@ -60,10 +126,69 @@
 					post-training and RL so the system gets better over time from real usage.
 				</p>
 			</div>
-			<Button href="/incidents" variant="outline" class="" disabled={false}>
-				<ArrowLeft class="size-4" />
-				Incidents
-			</Button>
+			<div class="flex flex-wrap items-center gap-2">
+				<Dialog.Root bind:open={trainDialogOpen}>
+					<Dialog.Trigger>
+						<Button type="button" variant="default" class="" disabled={false}>
+							<Play class="size-4" />
+							Train model
+						</Button>
+					</Dialog.Trigger>
+					<Dialog.Content class="" portalProps={{}} showCloseButton={true}>
+						<Dialog.Header class="">
+							<Dialog.Title class="">Train on dataset</Dialog.Title>
+							<Dialog.Description class="">
+								Start training on Modal using the collected RL dataset. Requires reflex-backend with
+								<code class="rounded bg-black/20 px-1">MODAL_TOKEN_ID</code> and
+								<code class="rounded bg-black/20 px-1">MODAL_TOKEN_SECRET</code> set.
+							</Dialog.Description>
+						</Dialog.Header>
+						<form
+							class="space-y-4"
+							onsubmit={(e) => {
+								e.preventDefault();
+								startTraining();
+							}}
+						>
+							{#if trainError === 'not_implemented'}
+								<div class="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-200">
+									Training is not configured. In reflex-backend set <strong>MODAL_TOKEN_ID</strong> and
+									<strong>MODAL_TOKEN_SECRET</strong>, then deploy a Modal app named
+									<code class="rounded bg-black/20 px-1">reflex-rl-training</code> with a function
+									<code class="rounded bg-black/20 px-1">train</code>. See docs/MODAL_INTEGRATION.md.
+								</div>
+							{:else if trainError}
+								<p class="text-sm text-red-400">{trainError}</p>
+							{:else if jobId}
+								<div class="rounded-md border border-[rgba(255,255,255,0.18)] bg-muted/30 p-3 text-sm">
+									<p class="font-medium">Job started</p>
+									<p class="font-mono text-xs text-muted-foreground">{jobId}</p>
+									{#if jobStatus}
+										<p class="mt-1">Status: {jobStatus}</p>
+									{/if}
+								</div>
+							{/if}
+							<Dialog.Footer class="">
+								<Button type="button" variant="outline" class="" disabled={false} onclick={closeTrainDialog}>
+									{jobId ? 'Close' : 'Cancel'}
+								</Button>
+								{#if !jobId}
+									<Button type="submit" class="" disabled={trainSubmitting}>
+										{#if trainSubmitting}
+											<Spinner class="size-4" />
+										{/if}
+										{trainSubmitting ? 'Starting…' : 'Start'}
+									</Button>
+								{/if}
+							</Dialog.Footer>
+						</form>
+					</Dialog.Content>
+				</Dialog.Root>
+				<Button href="/incidents" variant="outline" class="" disabled={false}>
+					<ArrowLeft class="size-4" />
+					Incidents
+				</Button>
+			</div>
 		</header>
 
 		{#if loading}
