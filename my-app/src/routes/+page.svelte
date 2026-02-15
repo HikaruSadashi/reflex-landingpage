@@ -189,13 +189,6 @@
 	</div>
 
 	<div class="relative z-10 mx-auto max-w-4xl text-center">
-		<!-- Micro-badge -->
-		<div class="hero-enter mb-10" style="animation-delay: 0s">
-			<span class="inline-block border border-[rgba(255,255,255,0.08)] px-4 py-1.5 text-[0.65rem] uppercase tracking-[0.25em] text-muted-foreground">
-				Coming 2026
-			</span>
-		</div>
-
 		<!-- Headline -->
 		<h1
 			class="hero-enter font-serif text-[clamp(3rem,8.5vw,7.5rem)] leading-[0.95] tracking-tight"
@@ -515,15 +508,13 @@
 	<div class="mx-auto flex max-w-6xl flex-col items-center justify-between gap-6 sm:flex-row">
 		<p class="text-xs tracking-wider text-muted-foreground">&copy; 2026 Reflex</p>
 		<div class="flex gap-8">
-			{#each ['Privacy', 'Terms', 'Contact', 'Docs'] as link}
-				<a
-					href="/{link.toLowerCase()}"
-					class="text-xs tracking-wider text-muted-foreground transition-colors duration-300 hover:text-foreground"
-					data-cursor="View {link.toLowerCase()}"
-				>
-					{link}
-				</a>
-			{/each}
+			<a
+				href="mailto:khalid.zabalawi.ca@gmail.com"
+				class="text-xs tracking-wider text-muted-foreground transition-colors duration-300 hover:text-foreground"
+				data-cursor="Send us an email"
+			>
+				Contact
+			</a>
 		</div>
 	</div>
 </footer>
