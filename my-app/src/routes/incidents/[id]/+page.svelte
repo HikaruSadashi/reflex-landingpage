@@ -24,8 +24,8 @@
 	};
 
 	type IncidentsResponse = {
-		incidents: IncidentSummary[];
-		next_cursor: number | null;
+		incidents: Array<Omit<IncidentSummary, 'id'> & { id: number | string }>;
+		next_cursor: number | string | null;
 		has_more: boolean;
 	};
 
@@ -40,6 +40,18 @@
 	let streamState = $state<StreamState>('idle');
 	let streamError = $state('');
 	let reasoningMarkdown = $state('');
+
+	function toPositiveNumber(value: unknown) {
+		const n = Number(value);
+		return Number.isFinite(n) && n > 0 ? n : null;
+	}
+
+	function normalizeIncident(raw: Omit<IncidentSummary, 'id'> & { id: number | string }): IncidentSummary {
+		return {
+			...raw,
+			id: Number(raw.id)
+		};
+	}
 
 	function statusVariant(status: string) {
 		return status.toLowerCase() === 'triggered' ? 'destructive' : 'secondary';
@@ -62,7 +74,12 @@
 		if (typeof cursor === 'number') params.set('cursor', String(cursor));
 		const res = await fetch(`${API_BASE}/incidents?${params.toString()}`);
 		if (!res.ok) throw new Error(`Failed to fetch incidents (${res.status})`);
-		return (await res.json()) as IncidentsResponse;
+		const payload = (await res.json()) as IncidentsResponse;
+		return {
+			incidents: (payload.incidents ?? []).map(normalizeIncident),
+			next_cursor: toPositiveNumber(payload.next_cursor),
+			has_more: Boolean(payload.has_more)
+		};
 	}
 
 	async function findIncidentById(targetId: number) {
@@ -74,7 +91,7 @@
 			const found = data.incidents.find((a) => a.id === targetId);
 			if (found) return found;
 			hasMore = !!data.has_more;
-			cursor = data.next_cursor;
+			cursor = data.next_cursor ?? null;
 			guard += 1;
 		}
 		return null;

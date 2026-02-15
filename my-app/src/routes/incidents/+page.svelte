@@ -40,8 +40,8 @@
 	};
 
 	type IncidentsResponse = {
-		incidents: IncidentRow[];
-		next_cursor: number | null;
+		incidents: Array<Omit<IncidentRow, 'id'> & { id: number | string }>;
+		next_cursor: number | string | null;
 		has_more: boolean;
 	};
 
@@ -61,6 +61,18 @@
 	let columnFilters = $state<ColumnFiltersState>([]);
 	let columnVisibility = $state<VisibilityState>({});
 	let quickFilter = $state<'all' | 'critical' | 'warn' | 'info' | 'triggered' | 'resolved'>('all');
+
+	function toPositiveNumber(value: unknown) {
+		const n = Number(value);
+		return Number.isFinite(n) && n > 0 ? n : null;
+	}
+
+	function normalizeIncidentRow(raw: Omit<IncidentRow, 'id'> & { id: number | string }): IncidentRow {
+		return {
+			...raw,
+			id: Number(raw.id)
+		};
+	}
 
 	function formatAlertTime(iso: string) {
 		const date = new Date(iso);
@@ -234,7 +246,12 @@
 			const body = await res.text();
 			throw new Error(body || `Request failed (${res.status})`);
 		}
-		return (await res.json()) as IncidentsResponse;
+		const payload = (await res.json()) as IncidentsResponse;
+		return {
+			incidents: (payload.incidents ?? []).map(normalizeIncidentRow),
+			next_cursor: toPositiveNumber(payload.next_cursor),
+			has_more: Boolean(payload.has_more)
+		};
 	}
 
 	async function loadInitialIncidents() {
