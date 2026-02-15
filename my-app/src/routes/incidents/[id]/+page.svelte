@@ -2,6 +2,7 @@
 	// @ts-nocheck
 	import { page } from '$app/stores';
 	import { onDestroy, onMount } from 'svelte';
+	import { fly } from 'svelte/transition';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Spinner } from '$lib/components/ui/spinner/index.js';
@@ -10,7 +11,7 @@
 	import * as Resizable from '$lib/components/ui/resizable/index.js';
 	import * as Choicebox from '$lib/components/ui/choicebox/index.js';
 	import LiveReasoningPane from '$lib/components/incidents/live-reasoning-pane.svelte';
-	import PlaceholderPane from '$lib/components/incidents/placeholder-pane.svelte';
+	import MemoryPane from '$lib/components/incidents/memory-pane.svelte';
 	import { ArrowLeft, RefreshCcw, Loader2 } from '@lucide/svelte';
 
 	type IncidentSummary = {
@@ -39,6 +40,16 @@
 		label: string;
 		description: string;
 	};
+	type MemoryEntry = {
+		id: number;
+		title: string;
+		body_markdown: string;
+		tags: string[];
+		confidence_text: string;
+		updated_at: string;
+		created_at: string;
+		last_updated_by: 'user' | 'ai';
+	};
 	const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'https://reflexbackend-r2rk.onrender.com';
 
 	let loading = $state(true);
@@ -50,7 +61,84 @@
 	let streamError = $state('');
 	let reasoningMarkdown = $state('');
 	let actionOptions = $state<ActionOption[]>([]);
+	let visibleActionOptions = $state<ActionOption[]>([]);
 	let selectedActionId = $state('');
+	let memoryEntry = $state<MemoryEntry | null>(null);
+	let memoryTitle = $state('');
+	let memoryBody = $state('');
+	let memoryDirty = $state(false);
+	let memorySaving = $state(false);
+	let memorySaveError = $state('');
+	let memoryStreamBuffer = $state('');
+	let memoryStreamActive = $state(false);
+	let memoryPoller: ReturnType<typeof setInterval> | null = null;
+	let actionOptionTimers: ReturnType<typeof setTimeout>[] = [];
+
+	function sessionStorageKey(id: number) {
+		return `reflex.incident.session.${id}`;
+	}
+
+	function clearActionOptionTimers() {
+		for (const timer of actionOptionTimers) clearTimeout(timer);
+		actionOptionTimers = [];
+	}
+
+	function persistSession() {
+		if (!incident || typeof localStorage === 'undefined') return;
+		localStorage.setItem(
+			sessionStorageKey(incident.id),
+			JSON.stringify({
+				reasoningMarkdown,
+				actionOptions,
+				selectedActionId
+			})
+		);
+	}
+
+	function restoreSession(id: number) {
+		if (typeof localStorage === 'undefined') return false;
+		const raw = localStorage.getItem(sessionStorageKey(id));
+		if (!raw) return false;
+		try {
+			const parsed = JSON.parse(raw) as {
+				reasoningMarkdown?: string;
+				actionOptions?: ActionOption[];
+				selectedActionId?: string;
+			};
+			reasoningMarkdown = parsed.reasoningMarkdown ?? '';
+			actionOptions = Array.isArray(parsed.actionOptions) ? parsed.actionOptions : [];
+			visibleActionOptions = [...actionOptions];
+			selectedActionId = parsed.selectedActionId ?? '';
+			return true;
+		} catch {
+			// Ignore corrupted session payload.
+			return false;
+		}
+	}
+
+	function setActionOptions(nextOptions: ActionOption[], animate = false) {
+		actionOptions = nextOptions;
+		if (!animate) {
+			visibleActionOptions = [...nextOptions];
+			return;
+		}
+		clearActionOptionTimers();
+		visibleActionOptions = [];
+		for (const [index, option] of nextOptions.entries()) {
+			const timer = setTimeout(() => {
+				visibleActionOptions = [...visibleActionOptions, option];
+			}, index * 120);
+			actionOptionTimers.push(timer);
+		}
+	}
+
+	$effect(() => {
+		incident?.id;
+		reasoningMarkdown;
+		actionOptions;
+		selectedActionId;
+		persistSession();
+	});
 
 	function toPositiveNumber(value: unknown) {
 		const n = Number(value);
@@ -115,6 +203,64 @@
 		return null;
 	}
 
+	async function fetchMemoryLatest() {
+		const res = await fetch(`${API_BASE}/memory?limit=1`);
+		if (!res.ok) throw new Error(`Failed to fetch memory (${res.status})`);
+		const payload = (await res.json()) as { memory?: MemoryEntry[] };
+		return payload.memory?.[0] ?? null;
+	}
+
+	async function fetchMemoryById(memoryId: number) {
+		const res = await fetch(`${API_BASE}/memory/${memoryId}`);
+		if (!res.ok) throw new Error(`Failed to fetch memory entry (${res.status})`);
+		const payload = (await res.json()) as { memory?: MemoryEntry };
+		return payload.memory ?? null;
+	}
+
+	function hydrateMemory(entry: MemoryEntry | null, force = false) {
+		memoryEntry = entry;
+		if (!entry) return;
+		if (force || !memoryDirty) {
+			memoryTitle = entry.title;
+			memoryBody = entry.body_markdown;
+			memoryDirty = false;
+		}
+	}
+
+	async function loadMemory(force = false) {
+		try {
+			const latest = await fetchMemoryLatest();
+			hydrateMemory(latest, force);
+		} catch {
+			// Keep existing memory UI state when polling fails.
+		}
+	}
+
+	async function saveMemory() {
+		if (!memoryEntry) return;
+		memorySaving = true;
+		memorySaveError = '';
+		try {
+			const res = await fetch(`${API_BASE}/memory/${memoryEntry.id}`, {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					title: memoryTitle || memoryEntry.title,
+					body_markdown: memoryBody || memoryEntry.body_markdown,
+					tags: memoryEntry.tags,
+					confidence_text: memoryEntry.confidence_text
+				})
+			});
+			if (!res.ok) throw new Error(`Failed to save memory (${res.status})`);
+			const payload = (await res.json()) as { memory?: MemoryEntry };
+			hydrateMemory(payload.memory ?? memoryEntry, true);
+		} catch (err) {
+			memorySaveError = err instanceof Error ? err.message : 'Failed to save memory';
+		} finally {
+			memorySaving = false;
+		}
+	}
+
 	function stopStream() {
 		if (stream) {
 			stream.close();
@@ -132,7 +278,7 @@
 		streamError = '';
 		if (!append) {
 			reasoningMarkdown = '';
-			actionOptions = [];
+			setActionOptions([], false);
 			selectedActionId = '';
 		} else {
 			reasoningMarkdown += `\n\n---\n### Executing action: ${action}\n`;
@@ -151,17 +297,50 @@
 			reasoningMarkdown += data.delta ?? '';
 		});
 
+		es.addEventListener('memory_write_start', (ev) => {
+			memoryStreamActive = true;
+			memoryStreamBuffer = '';
+			const data = JSON.parse((ev as MessageEvent).data) as { title?: string };
+			if (data.title) {
+				memoryTitle = data.title;
+			}
+		});
+
+		es.addEventListener('memory_write_delta', (ev) => {
+			const data = JSON.parse((ev as MessageEvent).data) as { delta?: string };
+			memoryStreamActive = true;
+			memoryStreamBuffer += data.delta ?? '';
+			memoryBody = memoryStreamBuffer;
+		});
+
+		es.addEventListener('memory_write_done', async (ev) => {
+			memoryStreamActive = false;
+			const data = JSON.parse((ev as MessageEvent).data) as { memory_entry_id?: number };
+			if (typeof data.memory_entry_id === 'number') {
+				try {
+					const latest = await fetchMemoryById(data.memory_entry_id);
+					hydrateMemory(latest, true);
+				} catch {
+					await loadMemory(true);
+				}
+			} else {
+				await loadMemory(true);
+			}
+			memoryStreamBuffer = '';
+		});
+
 		es.addEventListener('action_options', (ev) => {
 			try {
 				const data = JSON.parse((ev as MessageEvent).data) as { options?: ActionOption[] };
-				actionOptions = Array.isArray(data.options) ? data.options : [];
+				setActionOptions(Array.isArray(data.options) ? data.options : [], true);
 			} catch {
-				actionOptions = [];
+				setActionOptions([], false);
 			}
 		});
 
 		es.addEventListener('done', () => {
 			streamState = 'done';
+			memoryStreamActive = false;
 			if (incident) {
 				incident = {
 					...incident,
@@ -176,6 +355,7 @@
 
 		es.addEventListener('error', (ev) => {
 			streamState = 'error';
+			memoryStreamActive = false;
 			try {
 				const data = JSON.parse((ev as MessageEvent).data);
 				streamError = data.message ?? 'Stream connection error';
@@ -220,7 +400,14 @@
 				error = `Incident #${incidentId} not found in incidents list.`;
 				return;
 			}
+			const restored = restoreSession(incident.id);
+			if (!restored) {
+				reasoningMarkdown = '';
+				setActionOptions([], false);
+				selectedActionId = '';
+			}
 			streamState = 'idle';
+			await loadMemory();
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to load incident';
 		} finally {
@@ -230,10 +417,17 @@
 
 	onMount(() => {
 		void loadIncident();
+		memoryPoller = setInterval(() => {
+			if (!memoryStreamActive && !memorySaving) {
+				void loadMemory();
+			}
+		}, 5000);
 	});
 
 	onDestroy(() => {
 		stopStream();
+		clearActionOptionTimers();
+		if (memoryPoller) clearInterval(memoryPoller);
 	});
 </script>
 
@@ -329,7 +523,23 @@
 					<Resizable.Handle withHandle />
 
 					<Resizable.Pane defaultSize={50} minSize={22} collapsible={true} collapsedSize={0}>
-						<PlaceholderPane />
+						<MemoryPane
+							title={memoryTitle}
+							body={memoryBody}
+							lastUpdatedBy={memoryEntry?.last_updated_by ?? ''}
+							isSaving={memorySaving}
+							saveError={memorySaveError}
+							active={streamState === 'running' || memoryStreamActive}
+							onTitleInput={(value) => {
+								memoryTitle = value;
+								memoryDirty = true;
+							}}
+							onBodyInput={(value) => {
+								memoryBody = value;
+								memoryDirty = true;
+							}}
+							onSave={saveMemory}
+						/>
 					</Resizable.Pane>
 				</Resizable.PaneGroup>
 
@@ -342,16 +552,25 @@
 							</p>
 						</div>
 						<Choicebox.Root bind:value={selectedActionId} onValueChange={runSelectedAction}>
-							{#each actionOptions as option (option.id)}
-								<Choicebox.Item value={option.id} class="group justify-between">
-									<div class="min-w-0">
-										<Choicebox.Title class="line-clamp-1">{option.label}</Choicebox.Title>
-										<Choicebox.Description class="line-clamp-2">
-											{option.description}
-										</Choicebox.Description>
-									</div>
-									<Choicebox.Indicator />
-								</Choicebox.Item>
+							{#each visibleActionOptions as option, idx (option.id)}
+								<div transition:fly={{ y: 12, duration: 240, delay: idx * 70 }}>
+									<Choicebox.Item
+										value={option.id}
+										class="group items-center justify-between rounded-xl border-border/70 bg-background/40 px-4 py-3 transition-all duration-300 hover:border-primary/35 hover:bg-accent/25"
+									>
+										<div class="min-w-0 text-left">
+											<Choicebox.Title class="line-clamp-1 text-base text-foreground">
+												{option.label}
+											</Choicebox.Title>
+											<Choicebox.Description class="mt-1 line-clamp-2 text-sm leading-relaxed">
+												{option.description}
+											</Choicebox.Description>
+										</div>
+										<Choicebox.Indicator class="self-center" />
+									</Choicebox.Item>
+								</div>
+							{:else}
+								<div class="text-sm text-muted-foreground">Preparing action options...</div>
 							{/each}
 						</Choicebox.Root>
 					</div>

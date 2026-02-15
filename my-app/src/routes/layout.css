@@ -219,6 +219,41 @@ body:has([data-cursor]:hover) .cursor {
   animation: agent-working-pulse 3.2s ease-in-out infinite;
 }
 
+.agent-working-border {
+  animation: agent-working-pulse 2.2s ease-in-out infinite;
+  border-color: rgba(161, 92, 168, 0.78) !important;
+}
+
+.streaming-content {
+  transition: box-shadow 180ms ease;
+  box-shadow: inset 0 0 0 1px rgba(161, 92, 168, 0.2);
+}
+
+.stream-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(161, 92, 168, 0.55) rgba(12, 12, 18, 0.3);
+}
+
+.stream-scrollbar::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+.stream-scrollbar::-webkit-scrollbar-track {
+  background: rgba(12, 12, 18, 0.35);
+  border-radius: 999px;
+}
+
+.stream-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(161, 92, 168, 0.58);
+  border: 2px solid rgba(12, 12, 18, 0.35);
+  border-radius: 999px;
+}
+
+.stream-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(177, 143, 189, 0.75);
+}
+
 /* Grain overlay */
 .grain::before {
   content: '';

@@ -1,5 +1,6 @@
 <script lang="ts">
 	// @ts-nocheck
+	import { tick } from 'svelte';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Response } from '$lib/components/ai-elements/response/index.js';
 
@@ -14,6 +15,19 @@
 		streamError: string;
 		reasoningMarkdown: string;
 	} = $props();
+
+	let scroller: HTMLDivElement | null = null;
+
+	async function scrollToBottom() {
+		if (!scroller) return;
+		await tick();
+		scroller.scrollTop = scroller.scrollHeight;
+	}
+
+	$effect(() => {
+		reasoningMarkdown;
+		void scrollToBottom();
+	});
 </script>
 
 <div class="h-full p-6">
@@ -24,7 +38,10 @@
 		</Badge>
 	</div>
 
-	<div class="h-[380px] overflow-auto rounded-md border border-border bg-background/40 p-4">
+	<div
+		bind:this={scroller}
+		class={`stream-scrollbar h-[380px] overflow-auto rounded-md border border-border bg-background/40 p-4 ${streamState === 'running' ? 'streaming-content' : ''}`}
+	>
 		{#if streamError}
 			<p class="text-sm text-red-500">{streamError}</p>
 		{:else if reasoningMarkdown}
