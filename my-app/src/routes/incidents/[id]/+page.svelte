@@ -8,6 +8,7 @@
 	import * as Item from '$lib/components/ui/item/index.js';
 	import * as Table from '$lib/components/ui/table/index.js';
 	import * as Resizable from '$lib/components/ui/resizable/index.js';
+	import * as Choicebox from '$lib/components/ui/choicebox/index.js';
 	import LiveReasoningPane from '$lib/components/incidents/live-reasoning-pane.svelte';
 	import PlaceholderPane from '$lib/components/incidents/placeholder-pane.svelte';
 	import { ArrowLeft, RefreshCcw, Loader2 } from '@lucide/svelte';
@@ -33,6 +34,11 @@
 	};
 
 	type StreamState = 'idle' | 'running' | 'done' | 'error';
+	type ActionOption = {
+		id: string;
+		label: string;
+		description: string;
+	};
 	const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'https://reflexbackend-r2rk.onrender.com';
 
 	let loading = $state(true);
@@ -43,6 +49,8 @@
 	let streamState = $state<StreamState>('idle');
 	let streamError = $state('');
 	let reasoningMarkdown = $state('');
+	let actionOptions = $state<ActionOption[]>([]);
+	let selectedActionId = $state('');
 
 	function toPositiveNumber(value: unknown) {
 		const n = Number(value);
@@ -114,22 +122,42 @@
 		}
 	}
 
-	function startStream(rerun = false) {
+	function startStream({
+		rerun = false,
+		action,
+		append = false
+	}: { rerun?: boolean; action?: string; append?: boolean } = {}) {
 		if (!incident) return;
 		stopStream();
 		streamError = '';
-		reasoningMarkdown = '';
+		if (!append) {
+			reasoningMarkdown = '';
+			actionOptions = [];
+			selectedActionId = '';
+		} else {
+			reasoningMarkdown += `\n\n---\n### Executing action: ${action}\n`;
+		}
 		streamState = 'running';
 		incident = { ...incident, investigation_state: 'running', investigation_last_error: null };
-		const streamUrl = rerun
-			? `${API_BASE}/stream/incidents/${incident.id}?rerun=true`
-			: `${API_BASE}/stream/incidents/${incident.id}`;
+		const params = new URLSearchParams();
+		if (rerun) params.set('rerun', 'true');
+		if (action) params.set('action', action);
+		const streamUrl = `${API_BASE}/stream/incidents/${incident.id}${params.size ? `?${params.toString()}` : ''}`;
 		const es = new EventSource(streamUrl);
 		stream = es;
 
 		es.addEventListener('investigation_delta', (ev) => {
 			const data = JSON.parse((ev as MessageEvent).data);
 			reasoningMarkdown += data.delta ?? '';
+		});
+
+		es.addEventListener('action_options', (ev) => {
+			try {
+				const data = JSON.parse((ev as MessageEvent).data) as { options?: ActionOption[] };
+				actionOptions = Array.isArray(data.options) ? data.options : [];
+			} catch {
+				actionOptions = [];
+			}
 		});
 
 		es.addEventListener('done', () => {
@@ -164,6 +192,17 @@
 			}
 			es.close();
 			stream = null;
+		});
+	}
+
+	function runSelectedAction(value: string) {
+		const selected = actionOptions.find((option) => option.id === value);
+		if (!selected || streamState === 'running') return;
+		selectedActionId = value;
+		startStream({
+			rerun: true,
+			action: selected.label,
+			append: true
 		});
 	}
 
@@ -212,7 +251,7 @@
 				</Button>
 				<Button
 					variant="outline"
-					onclick={() => startStream(incident?.investigation_state === 'done')}
+					onclick={() => startStream({ rerun: incident?.investigation_state === 'done' })}
 					disabled={streamState === 'running' || !incident}
 				>
 					{#if streamState === 'running'}
@@ -289,10 +328,34 @@
 
 					<Resizable.Handle withHandle />
 
-					<Resizable.Pane defaultSize={50}>
+					<Resizable.Pane defaultSize={50} minSize={22} collapsible={true} collapsedSize={0}>
 						<PlaceholderPane />
 					</Resizable.Pane>
 				</Resizable.PaneGroup>
+
+				{#if actionOptions.length > 0}
+					<div class="space-y-3 rounded-lg border border-[rgba(255,255,255,0.18)] p-4">
+						<div>
+							<h3 class="font-serif text-xl italic tracking-tight">Recommended actions</h3>
+							<p class="text-sm text-muted-foreground">
+								Select an action to continue investigation and execution.
+							</p>
+						</div>
+						<Choicebox.Root bind:value={selectedActionId} onValueChange={runSelectedAction}>
+							{#each actionOptions as option (option.id)}
+								<Choicebox.Item value={option.id} class="group justify-between">
+									<div class="min-w-0">
+										<Choicebox.Title class="line-clamp-1">{option.label}</Choicebox.Title>
+										<Choicebox.Description class="line-clamp-2">
+											{option.description}
+										</Choicebox.Description>
+									</div>
+									<Choicebox.Indicator />
+								</Choicebox.Item>
+							{/each}
+						</Choicebox.Root>
+					</div>
+				{/if}
 			</div>
 		{/if}
 	</section>
