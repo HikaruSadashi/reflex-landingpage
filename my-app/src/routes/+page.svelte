@@ -170,7 +170,7 @@
 <!-- ===== NAV ===== -->
 <nav class="fixed top-0 z-50 w-full border-b border-[rgba(255,255,255,0.04)] bg-[#06060a]/90 backdrop-blur-sm">
 	<div class="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
-		<a href="/" class="font-serif text-xl italic tracking-tight text-foreground" data-cursor="Go home">Reflex</a>
+		<a href="/" class="font-serif text-xl italic tracking-tight text-foreground" data-cursor="Go home">reflex</a>
 		<div class="hidden items-center gap-8 md:flex">
 			<a href="#demo" class="text-xs uppercase tracking-widest text-muted-foreground transition-colors duration-300 hover:text-foreground" data-cursor="Watch the demo">Demo</a>
 			<a href="#how-it-works" class="text-xs uppercase tracking-widest text-muted-foreground transition-colors duration-300 hover:text-foreground" data-cursor="Learn how it works">How it works</a>
