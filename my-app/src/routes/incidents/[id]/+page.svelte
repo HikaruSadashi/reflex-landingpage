@@ -465,6 +465,19 @@
 			}
 		});
 
+		es.addEventListener('postmortem_error', (ev) => {
+			try {
+				const data = JSON.parse((ev as MessageEvent).data) as { message?: string };
+				postmortemError = data.message ?? 'Postmortem stream error';
+			} catch {
+				postmortemError = 'Postmortem stream error';
+			}
+			postmortemState = 'error';
+			memoryStreamActive = false;
+			es.close();
+			postmortemStream = null;
+		});
+
 		es.addEventListener('done', () => {
 			postmortemState = 'done';
 			memoryStreamActive = false;
@@ -474,6 +487,7 @@
 		});
 
 		es.addEventListener('error', (ev) => {
+			if (postmortemState === 'error') return;
 			postmortemState = 'error';
 			memoryStreamActive = false;
 			try {

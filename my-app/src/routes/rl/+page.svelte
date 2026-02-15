@@ -52,7 +52,12 @@
 				records = [];
 				return;
 			}
-			records = await res.json();
+			try {
+				records = await res.json();
+			} catch {
+				records = [];
+				error = 'Dataset response was not valid JSON. Is the backend deployed with /rl-dataset?';
+			}
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load dataset';
 			records = [];
