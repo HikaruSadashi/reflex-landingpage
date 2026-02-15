@@ -2,8 +2,84 @@
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Play, ArrowRight } from '@lucide/svelte';
+	import { onMount } from 'svelte';
+	import { gsap } from 'gsap';
 
 	let email = $state('');
+	let cursorElement;
+	let cursorText;
+
+	onMount(() => {
+		initCursor();
+	});
+
+	function initCursor() {
+		if (!cursorElement) return;
+
+		const cursorParagraph = cursorElement.querySelector('p');
+		const targets = document.querySelectorAll('[data-cursor]');
+
+		let xOffset = 6;
+		let yOffset = 50;
+		let cursorIsOnRight = false;
+		let currentTarget = null;
+		let lastText = '';
+
+		gsap.set(cursorElement, { xPercent: xOffset, yPercent: yOffset });
+
+		let xTo = gsap.quickTo(cursorElement, 'x', { ease: 'power3' });
+		let yTo = gsap.quickTo(cursorElement, 'y', { ease: 'power3' });
+
+		window.addEventListener('mousemove', (e) => {
+			const cursorX = e.clientX;
+			const cursorY = e.pageY;
+			const windowWidth = window.innerWidth;
+
+			// Flip offset when cursor is near the right edge
+			let xPercent = xOffset;
+			let yPercent = yOffset;
+
+			if (cursorX > windowWidth * 0.75) {
+				xPercent = -106;
+				cursorIsOnRight = true;
+			} else {
+				xPercent = xOffset;
+				cursorIsOnRight = false;
+			}
+
+			// Update text from data-easteregg when on right side
+			if (currentTarget) {
+				const easterEgg = currentTarget.getAttribute('data-easteregg');
+				const cursorData = currentTarget.getAttribute('data-cursor');
+				const newText = cursorIsOnRight && easterEgg ? easterEgg : cursorData;
+				if (newText !== lastText) {
+					lastText = newText;
+					if (cursorParagraph) cursorParagraph.textContent = newText;
+				}
+			}
+
+			gsap.to(cursorElement, { xPercent, yPercent, duration: 0.9, ease: 'power3' });
+			xTo(cursorX);
+			yTo(cursorY - window.scrollY);
+		});
+
+		targets.forEach((target) => {
+			target.addEventListener('mouseenter', () => {
+				currentTarget = target;
+				const text = target.getAttribute('data-cursor');
+				if (cursorParagraph && text) {
+					lastText = text;
+					cursorParagraph.textContent = text;
+				}
+			});
+			target.addEventListener('mouseleave', () => {
+				if (currentTarget === target) {
+					currentTarget = null;
+					lastText = '';
+				}
+			});
+		});
+	}
 
 	/**
 	 * Scroll-triggered reveal animation action.
@@ -36,17 +112,22 @@
 	}
 </script>
 
+<!-- Custom Cursor -->
+<div bind:this={cursorElement} class="cursor">
+	<p bind:this={cursorText}>Learn more</p>
+</div>
+
 <!-- ===== NAV ===== -->
 <nav class="fixed top-0 z-50 w-full border-b border-[rgba(255,255,255,0.04)] bg-[#06060a]/90 backdrop-blur-sm">
 	<div class="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
-		<a href="/" class="font-serif text-xl italic tracking-tight text-foreground">Reflex</a>
+		<a href="/" class="font-serif text-xl italic tracking-tight text-foreground" data-cursor="Go home">Reflex</a>
 		<div class="hidden items-center gap-8 md:flex">
-			<a href="#demo" class="text-xs uppercase tracking-widest text-muted-foreground transition-colors duration-300 hover:text-foreground">Demo</a>
-			<a href="#how-it-works" class="text-xs uppercase tracking-widest text-muted-foreground transition-colors duration-300 hover:text-foreground">How it works</a>
-			<a href="#features" class="text-xs uppercase tracking-widest text-muted-foreground transition-colors duration-300 hover:text-foreground">Features</a>
-			<a href="#waitlist" class="text-xs uppercase tracking-widest text-muted-foreground transition-colors duration-300 hover:text-foreground">Waitlist</a>
+			<a href="#demo" class="text-xs uppercase tracking-widest text-muted-foreground transition-colors duration-300 hover:text-foreground" data-cursor="Watch the demo">Demo</a>
+			<a href="#how-it-works" class="text-xs uppercase tracking-widest text-muted-foreground transition-colors duration-300 hover:text-foreground" data-cursor="Learn how it works">How it works</a>
+			<a href="#features" class="text-xs uppercase tracking-widest text-muted-foreground transition-colors duration-300 hover:text-foreground" data-cursor="See all features">Features</a>
+			<a href="#waitlist" class="text-xs uppercase tracking-widest text-muted-foreground transition-colors duration-300 hover:text-foreground" data-cursor="Join the waitlist">Waitlist</a>
 		</div>
-		<Button href="#waitlist" size="sm" class="rounded-none bg-primary px-5 text-xs uppercase tracking-widest text-primary-foreground hover:bg-primary/85">Get early access</Button>
+		<Button href="#waitlist" size="sm" class="rounded-none bg-primary px-5 text-xs uppercase tracking-widest text-primary-foreground hover:bg-primary/85" data-cursor="Get early access">Get early access</Button>
 	</div>
 </nav>
 
@@ -99,6 +180,7 @@
 				variant="outline"
 				size="lg"
 				class="rounded-none border-[rgba(255,255,255,0.1)] bg-transparent px-6 text-xs uppercase tracking-widest text-foreground hover:border-[rgba(255,255,255,0.2)] hover:bg-[rgba(255,255,255,0.03)]"
+				data-cursor="See it in action"
 			>
 				<Play class="size-3.5" />
 				Watch demo
@@ -107,6 +189,7 @@
 				href="#waitlist"
 				size="lg"
 				class="rounded-none bg-primary px-6 text-xs uppercase tracking-widest text-primary-foreground hover:bg-primary/85"
+				data-cursor="Let's go!"
 			>
 				Join waitlist
 				<ArrowRight class="size-3.5" />
@@ -150,7 +233,7 @@
 				</div>
 				<!-- Play button -->
 				<div class="absolute inset-0 flex items-center justify-center">
-					<button class="group flex size-16 items-center justify-center border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.02)] transition-all duration-300 hover:border-primary/30 hover:bg-primary/5">
+					<button class="group flex size-16 items-center justify-center border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.02)] transition-all duration-300 hover:border-primary/30 hover:bg-primary/5" data-cursor="Play demo">
 						<Play class="size-5 text-muted-foreground transition-colors group-hover:text-primary" />
 					</button>
 				</div>
@@ -348,6 +431,7 @@
 				type="submit"
 				size="lg"
 				class="h-11 rounded-none bg-primary px-6 text-xs uppercase tracking-widest text-primary-foreground hover:bg-primary/85"
+				data-cursor="Submit"
 			>
 				Join waitlist
 			</Button>
@@ -368,6 +452,7 @@
 				<a
 					href="/{link.toLowerCase()}"
 					class="text-xs tracking-wider text-muted-foreground/40 transition-colors duration-300 hover:text-muted-foreground"
+					data-cursor="View {link.toLowerCase()}"
 				>
 					{link}
 				</a>

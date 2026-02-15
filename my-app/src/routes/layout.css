@@ -119,7 +119,42 @@
   }
   body {
     @apply bg-background text-foreground font-mono;
+    cursor: url('https://cdn.prod.website-files.com/6708f85ff3d3cba6aff436fb/671251b239d7aeb290a31ac5_cursor-default%402x.svg') 2 0, auto;
   }
+}
+
+/* Custom cursor pointer for interactive elements */
+a, button, [role="button"], input[type="submit"] {
+  cursor: url('https://cdn.prod.website-files.com/6708f85ff3d3cba6aff436fb/671251b212e6b71494aa67ff_cursor-pointer%402x.svg') 12 0, pointer;
+}
+
+/* Custom Cursor Tooltip */
+.cursor {
+  z-index: 1000;
+  background-color: var(--primary, #a15ca8);
+  opacity: 0;
+  pointer-events: none;
+  color: white;
+  position: fixed;
+  top: 0;
+  left: 0;
+  padding: 6px 14px;
+  border-radius: 0;
+  font-size: 0.75rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  font-family: 'IBM Plex Mono', 'Inter', Arial, sans-serif;
+  transition: opacity 0.3s ease;
+}
+
+.cursor p {
+  margin: 0;
+}
+
+body:has([data-cursor]:hover) .cursor {
+  opacity: 1;
 }
 
 /* ===== Animations ===== */
