@@ -199,7 +199,7 @@
 
 		<!-- Micro-line -->
 		<p
-			class="hero-enter mt-16 text-[0.65rem] tracking-[0.2em] text-muted-foreground/30 uppercase"
+			class="hero-enter mt-16 text-[0.65rem] tracking-[0.2em] text-muted-foreground uppercase"
 			style="animation-delay: 0.7s"
 		>
 			Outages shouldn't repeat
@@ -325,7 +325,7 @@
 			{/each}
 		</div>
 
-		<p use:reveal={600} class="mt-16 text-xs tracking-[0.2em] text-muted-foreground/40 uppercase">
+		<p use:reveal={600} class="mt-16 text-xs tracking-[0.2em] text-muted-foreground uppercase">
 			Reliability that compounds.
 		</p>
 	</div>
@@ -438,7 +438,7 @@
 			</Button>
 		</form>
 
-		<p use:reveal={300} class="mt-6 text-[0.65rem] tracking-[0.15em] text-muted-foreground/30 uppercase">
+		<p use:reveal={300} class="mt-6 text-[0.65rem] tracking-[0.15em] text-muted-foreground uppercase">
 			No spam. Early access only.
 		</p>
 	</div>
@@ -447,12 +447,12 @@
 <!-- ===== FOOTER ===== -->
 <footer class="border-t border-[rgba(255,255,255,0.04)] px-6 py-10">
 	<div class="mx-auto flex max-w-6xl flex-col items-center justify-between gap-6 sm:flex-row">
-		<p class="text-xs tracking-wider text-muted-foreground/40">&copy; 2026 Reflex</p>
+		<p class="text-xs tracking-wider text-muted-foreground">&copy; 2026 Reflex</p>
 		<div class="flex gap-8">
 			{#each ['Privacy', 'Terms', 'Contact', 'Docs'] as link}
 				<a
 					href="/{link.toLowerCase()}"
-					class="text-xs tracking-wider text-muted-foreground/40 transition-colors duration-300 hover:text-muted-foreground"
+					class="text-xs tracking-wider text-muted-foreground transition-colors duration-300 hover:text-foreground"
 					data-cursor="View {link.toLowerCase()}"
 				>
 					{link}
