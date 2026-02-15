@@ -167,20 +167,6 @@
 	<p bind:this={cursorText}>Learn more</p>
 </div>
 
-<!-- ===== NAV ===== -->
-<nav class="fixed top-0 z-50 w-full border-b border-[rgba(255,255,255,0.04)] bg-[#06060a]/90 backdrop-blur-sm">
-	<div class="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
-		<a href="/" class="font-serif text-xl italic tracking-tight text-foreground" data-cursor="Go home">reflex</a>
-		<div class="hidden items-center gap-8 md:flex">
-			<a href="#demo" class="text-xs uppercase tracking-widest text-muted-foreground transition-colors duration-300 hover:text-foreground" data-cursor="Watch the demo">Demo</a>
-			<a href="#how-it-works" class="text-xs uppercase tracking-widest text-muted-foreground transition-colors duration-300 hover:text-foreground" data-cursor="Learn how it works">How it works</a>
-			<a href="#features" class="text-xs uppercase tracking-widest text-muted-foreground transition-colors duration-300 hover:text-foreground" data-cursor="See all features">Features</a>
-			<a href="#waitlist" class="text-xs uppercase tracking-widest text-muted-foreground transition-colors duration-300 hover:text-foreground" data-cursor="Join the waitlist">Waitlist</a>
-		</div>
-		<Button href="#waitlist" size="sm" class="rounded-none bg-primary px-5 text-xs uppercase tracking-widest text-primary-foreground hover:bg-primary/85" data-cursor="Get early access">Get early access</Button>
-	</div>
-</nav>
-
 <!-- ===== HERO ===== -->
 <section class="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-6 pt-14">
 	<!-- Decorative terminal code in background -->
