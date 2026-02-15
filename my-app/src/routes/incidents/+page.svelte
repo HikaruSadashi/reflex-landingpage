@@ -29,16 +29,18 @@
 		renderSnippet
 	} from '$lib/components/ui/data-table/index.js';
 
-	type AlertRow = {
+	type IncidentRow = {
 		id: number;
+		title: string;
 		log_name: string;
 		status: string;
 		severity: string;
 		started_at: string;
+		resolved_at: string | null;
 	};
 
-	type AlertsResponse = {
-		alerts: AlertRow[];
+	type IncidentsResponse = {
+		incidents: IncidentRow[];
 		next_cursor: number | null;
 		has_more: boolean;
 	};
@@ -47,7 +49,7 @@
 	const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'https://reflexbackend-r2rk.onrender.com';
 
 	let projectName = $state('Project');
-	let rows = $state<AlertRow[]>([]);
+	let rows = $state<IncidentRow[]>([]);
 	let loading = $state(true);
 	let error = $state('');
 	let nextCursor = $state<number | null>(null);
@@ -122,16 +124,26 @@
 		severityColumn.setFilterValue(filter);
 	}
 
-	const columns: ColumnDef<AlertRow>[] = [
+	function incidentStateClass(row: IncidentRow) {
+		return row.resolved_at == null ? 'agent-working-row' : '';
+	}
+
+	const columns: ColumnDef<IncidentRow>[] = [
 		{
-			accessorKey: 'log_name',
-			header: 'Log name',
+			accessorKey: 'title',
+			header: 'Incident',
 			cell: ({ row }) => {
-				const snippet = createRawSnippet<[{ logName: string }]>((getData) => {
-					const { logName } = getData();
-					return { render: () => `<div class="font-medium">${logName}</div>` };
+				const snippet = createRawSnippet<[{ title: string; logName: string | null }]>((getData) => {
+					const { title, logName } = getData();
+					return {
+						render: () =>
+							`<div><div class="font-medium">${title}</div><div class="text-xs text-muted-foreground">${logName ?? '—'}</div></div>`
+					};
 				});
-				return renderSnippet(snippet, { logName: row.original.log_name });
+				return renderSnippet(snippet, {
+					title: row.original.title,
+					logName: row.original.log_name
+				});
 			}
 		},
 		{
@@ -214,42 +226,42 @@
 		}
 	});
 
-	async function fetchAlerts(cursor?: number) {
+	async function fetchIncidents(cursor?: number) {
 		const params = new URLSearchParams({ limit: '20' });
 		if (typeof cursor === 'number') params.set('cursor', String(cursor));
-		const res = await fetch(`${API_BASE}/alerts?${params.toString()}`);
+		const res = await fetch(`${API_BASE}/incidents?${params.toString()}`);
 		if (!res.ok) {
 			const body = await res.text();
 			throw new Error(body || `Request failed (${res.status})`);
 		}
-		return (await res.json()) as AlertsResponse;
+		return (await res.json()) as IncidentsResponse;
 	}
 
-	async function loadInitialAlerts() {
+	async function loadInitialIncidents() {
 		loading = true;
 		error = '';
 		try {
-			const data = await fetchAlerts();
-			rows = data.alerts ?? [];
+			const data = await fetchIncidents();
+			rows = data.incidents ?? [];
 			nextCursor = data.next_cursor ?? null;
 			hasMore = !!data.has_more;
 		} catch (err) {
-			error = err instanceof Error ? err.message : 'Failed to load alerts';
+			error = err instanceof Error ? err.message : 'Failed to load incidents';
 		} finally {
 			loading = false;
 		}
 	}
 
-	async function loadMoreAlerts() {
+	async function loadMoreIncidents() {
 		if (!hasMore || nextCursor == null || loadingMore) return;
 		loadingMore = true;
 		try {
-			const data = await fetchAlerts(nextCursor);
-			rows = [...rows, ...(data.alerts ?? [])];
+			const data = await fetchIncidents(nextCursor);
+			rows = [...rows, ...(data.incidents ?? [])];
 			nextCursor = data.next_cursor ?? null;
 			hasMore = !!data.has_more;
 		} catch (err) {
-			error = err instanceof Error ? err.message : 'Failed to load more alerts';
+			error = err instanceof Error ? err.message : 'Failed to load more incidents';
 		} finally {
 			loadingMore = false;
 		}
@@ -258,14 +270,14 @@
 	onMount(() => {
 		const stored = localStorage.getItem(PROJECT_STORAGE_KEY);
 		if (stored?.trim()) projectName = stored.trim();
-		void loadInitialAlerts();
+		void loadInitialIncidents();
 	});
 </script>
 
 <main class="bg-background min-h-svh px-6 pb-14 pt-24 md:px-10 md:pb-20 md:pt-28">
 	<section class="mx-auto w-full max-w-6xl space-y-8">
 		<header>
-			<h1 class="font-serif text-5xl italic tracking-tight md:text-6xl">Alerts for {projectName}</h1>
+			<h1 class="font-serif text-5xl italic tracking-tight md:text-6xl">Incidents for {projectName}</h1>
 		</header>
 
 		{#if loading}
@@ -275,23 +287,23 @@
 						<Spinner />
 					</Item.Media>
 					<Item.Content>
-						<Item.Title>Loading alerts...</Item.Title>
+						<Item.Title>Loading incidents...</Item.Title>
 					</Item.Content>
 				</Item.Root>
 			</div>
 		{:else if error}
 			<div class="space-y-3">
 				<p class="text-sm text-red-500">{error}</p>
-				<Button variant="outline" onclick={loadInitialAlerts}>Retry</Button>
+				<Button variant="outline" onclick={loadInitialIncidents}>Retry</Button>
 			</div>
 		{:else}
 			<div class="-mb-8 w-full">
 				<div class="flex items-center gap-3 py-4">
 					<Input
-						placeholder="Filter log names..."
-						value={(table.getColumn('log_name')?.getFilterValue() as string) ?? ''}
-						oninput={(e) => table.getColumn('log_name')?.setFilterValue(e.currentTarget.value)}
-						onchange={(e) => table.getColumn('log_name')?.setFilterValue(e.currentTarget.value)}
+						placeholder="Filter incidents..."
+						value={(table.getColumn('title')?.getFilterValue() as string) ?? ''}
+						oninput={(e) => table.getColumn('title')?.setFilterValue(e.currentTarget.value)}
+						onchange={(e) => table.getColumn('title')?.setFilterValue(e.currentTarget.value)}
 						class="max-w-sm"
 					/>
 					<DropdownMenu.Root>
@@ -385,8 +397,8 @@
 						<Table.Body>
 							{#each table.getRowModel().rows as row (row.id)}
 								<Table.Row
-									class="cursor-pointer transition-colors hover:bg-accent/30"
-									onclick={() => goto(`/alerts/${row.original.id}`)}
+									class={`cursor-pointer transition-colors hover:bg-accent/30 ${incidentStateClass(row.original)}`}
+									onclick={() => goto(`/incidents/${row.original.id}`)}
 								>
 									{#each row.getVisibleCells() as cell (cell.id)}
 										<Table.Cell>
@@ -407,7 +419,7 @@
 
 				<div class="flex items-center justify-end space-x-2 pt-4">
 					<div class="text-muted-foreground flex-1 text-sm">
-						{table.getFilteredRowModel().rows.length} alert(s)
+						{table.getFilteredRowModel().rows.length} incident(s)
 					</div>
 					<div class="space-x-2">
 						<Button
@@ -431,7 +443,7 @@
 
 				{#if hasMore}
 					<div class="flex items-center justify-end pt-2">
-						<Button variant="outline" onclick={loadMoreAlerts} disabled={loadingMore}>
+						<Button variant="outline" onclick={loadMoreIncidents} disabled={loadingMore}>
 							{loadingMore ? 'Loading...' : 'Load more from backend'}
 						</Button>
 					</div>

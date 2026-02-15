@@ -95,7 +95,7 @@
 	}
 
 	async function handleFinish() {
-		await goto('/alerts');
+		await goto('/incidents');
 	}
 
 	function fillExampleTrigger() {
