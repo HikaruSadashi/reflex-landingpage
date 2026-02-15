@@ -20,6 +20,9 @@
 		source: string;
 		started_at: string;
 		resolved_at: string | null;
+		investigation_state: 'pending' | 'running' | 'done' | 'error';
+		investigation_updated_at: string | null;
+		investigation_last_error: string | null;
 		log_name: string | null;
 	};
 
@@ -64,6 +67,13 @@
 		return 'outline';
 	}
 
+	function investigationVariant(state: IncidentSummary['investigation_state']) {
+		if (state === 'running') return 'secondary';
+		if (state === 'done') return 'outline';
+		if (state === 'error') return 'destructive';
+		return 'outline';
+	}
+
 	function formatDateTime(iso: string | null) {
 		if (!iso) return '—';
 		return new Date(iso).toLocaleString();
@@ -104,14 +114,17 @@
 		}
 	}
 
-	function startStream() {
+	function startStream(rerun = false) {
 		if (!incident) return;
 		stopStream();
 		streamError = '';
 		reasoningMarkdown = '';
 		streamState = 'running';
-
-		const es = new EventSource(`${API_BASE}/stream/incidents/${incident.id}`);
+		incident = { ...incident, investigation_state: 'running', investigation_last_error: null };
+		const streamUrl = rerun
+			? `${API_BASE}/stream/incidents/${incident.id}?rerun=true`
+			: `${API_BASE}/stream/incidents/${incident.id}`;
+		const es = new EventSource(streamUrl);
 		stream = es;
 
 		es.addEventListener('investigation_delta', (ev) => {
@@ -121,6 +134,14 @@
 
 		es.addEventListener('done', () => {
 			streamState = 'done';
+			if (incident) {
+				incident = {
+					...incident,
+					investigation_state: 'done',
+					investigation_updated_at: new Date().toISOString(),
+					investigation_last_error: null
+				};
+			}
 			es.close();
 			stream = null;
 		});
@@ -132,6 +153,14 @@
 				streamError = data.message ?? 'Stream connection error';
 			} catch {
 				streamError = 'Stream connection error';
+			}
+			if (incident) {
+				incident = {
+					...incident,
+					investigation_state: 'error',
+					investigation_updated_at: new Date().toISOString(),
+					investigation_last_error: streamError
+				};
 			}
 			es.close();
 			stream = null;
@@ -152,7 +181,7 @@
 				error = `Incident #${incidentId} not found in incidents list.`;
 				return;
 			}
-			startStream();
+			streamState = 'idle';
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to load incident';
 		} finally {
@@ -181,11 +210,21 @@
 					<RefreshCcw class="size-4" />
 					Refresh
 				</Button>
-				<Button variant="outline" onclick={startStream} disabled={streamState === 'running' || !incident}>
+				<Button
+					variant="outline"
+					onclick={() => startStream(incident?.investigation_state === 'done')}
+					disabled={streamState === 'running' || !incident}
+				>
 					{#if streamState === 'running'}
 						<Loader2 class="size-4 animate-spin" />
 					{/if}
-					{streamState === 'running' ? 'Streaming...' : 'Restart stream'}
+					{#if streamState === 'running'}
+						Streaming...
+					{:else if incident?.investigation_state === 'done'}
+						Restart investigation
+					{:else}
+						Start investigation
+					{/if}
 				</Button>
 			</div>
 		</div>
@@ -213,6 +252,7 @@
 								<Table.Head>Severity</Table.Head>
 								<Table.Head>Time</Table.Head>
 								<Table.Head>Resolved</Table.Head>
+								<Table.Head>Investigation</Table.Head>
 							</Table.Row>
 						</Table.Header>
 						<Table.Body>
@@ -225,10 +265,19 @@
 								<Table.Cell><Badge variant={severityVariant(incident.severity)}>{incident.severity}</Badge></Table.Cell>
 								<Table.Cell>{formatDateTime(incident.started_at)}</Table.Cell>
 								<Table.Cell>{incident.resolved_at ? formatDateTime(incident.resolved_at) : 'In progress'}</Table.Cell>
+								<Table.Cell>
+									<Badge variant={investigationVariant(incident.investigation_state)}>
+										{incident.investigation_state}
+									</Badge>
+								</Table.Cell>
 							</Table.Row>
 						</Table.Body>
 					</Table.Root>
 				</div>
+
+				{#if incident.investigation_last_error}
+					<p class="text-sm text-red-400">{incident.investigation_last_error}</p>
+				{/if}
 
 				<Resizable.PaneGroup
 					direction="horizontal"

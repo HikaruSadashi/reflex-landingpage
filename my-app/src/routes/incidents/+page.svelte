@@ -37,6 +37,9 @@
 		severity: string;
 		started_at: string;
 		resolved_at: string | null;
+		investigation_state: 'pending' | 'running' | 'done' | 'error';
+		investigation_updated_at: string | null;
+		investigation_last_error: string | null;
 	};
 
 	type IncidentsResponse = {
@@ -136,8 +139,21 @@
 		severityColumn.setFilterValue(filter);
 	}
 
+	function investigationClass(state: IncidentRow['investigation_state']) {
+		switch (state) {
+			case 'running':
+				return 'border-violet-500/40 bg-violet-500/10 text-violet-300';
+			case 'done':
+				return 'border-green-500/40 bg-green-500/10 text-green-400';
+			case 'error':
+				return 'border-red-500/40 bg-red-500/10 text-red-400';
+			default:
+				return 'border-border bg-muted/30 text-foreground';
+		}
+	}
+
 	function incidentStateClass(row: IncidentRow) {
-		return row.resolved_at == null ? 'agent-working-row' : '';
+		return row.investigation_state === 'running' ? 'agent-working-row' : '';
 	}
 
 	const columns: ColumnDef<IncidentRow>[] = [
@@ -202,6 +218,23 @@
 				});
 				return renderSnippet(snippet, {
 					time: formatAlertTime(row.original.started_at)
+				});
+			}
+		},
+		{
+			accessorKey: 'investigation_state',
+			header: 'Investigation',
+			cell: ({ row }) => {
+				const snippet = createRawSnippet<[{ value: string; className: string }]>((getData) => {
+					const { value, className } = getData();
+					return {
+						render: () =>
+							`<span class="inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium ${className}">${value}</span>`
+					};
+				});
+				return renderSnippet(snippet, {
+					value: capitalize(row.original.investigation_state),
+					className: investigationClass(row.original.investigation_state)
 				});
 			}
 		}
