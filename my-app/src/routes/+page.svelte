@@ -4,6 +4,7 @@
 	import { Play, ArrowRight } from '@lucide/svelte';
 	import { onMount } from 'svelte';
 	import { gsap } from 'gsap';
+	import ImgReveal from '$lib/ImgReveal.svelte';
 
 	let email = $state('');
 	let cursorElement;
@@ -167,10 +168,10 @@
 
 		<!-- Supporting line -->
 		<p
-			class="hero-enter mt-3 text-xs tracking-widest text-muted-foreground/50 uppercase"
+			class="hero-enter mt-3 text-xs tracking-widest text-muted-foreground uppercase"
 			style="animation-delay: 0.42s"
 		>
-			Production systems with reflexes
+			Production systems with <ImgReveal src="/cat.gif"><span class="text-primary cursor-pointer transition-colors duration-300 hover:text-primary/80">reflexes</span></ImgReveal>
 		</p>
 
 		<!-- Buttons -->
