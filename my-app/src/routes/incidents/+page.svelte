@@ -50,17 +50,19 @@
 	};
 
 	const PROJECT_STORAGE_KEY = 'reflex.onboarding.projectName';
-	const REFLEX_STORAGE_PREFIX = 'reflex.';
 	const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'https://reflexbackend-r2rk.onrender.com';
 
+	/** Clears all localStorage for this site, then restores only the project name and reloads. */
 	function clearReflexStorageAndReload() {
 		if (typeof localStorage === 'undefined') return;
+		const savedProjectName = localStorage.getItem(PROJECT_STORAGE_KEY);
 		const keys: string[] = [];
 		for (let i = 0; i < localStorage.length; i++) {
 			const key = localStorage.key(i);
-			if (key?.startsWith(REFLEX_STORAGE_PREFIX)) keys.push(key);
+			if (key) keys.push(key);
 		}
 		for (const key of keys) localStorage.removeItem(key);
+		if (savedProjectName != null) localStorage.setItem(PROJECT_STORAGE_KEY, savedProjectName);
 		window.location.href = '/incidents';
 	}
 

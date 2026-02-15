@@ -17,6 +17,10 @@
 
 	const API_BASE =
 		import.meta.env.VITE_API_BASE_URL ?? 'https://reflexbackend-r2rk.onrender.com';
+	/** When true, training is faked in the frontend (no backend/Modal). Set VITE_MOCK_TRAINING=false to use real API. */
+	const MOCK_TRAINING =
+		import.meta.env.VITE_MOCK_TRAINING === 'true' ||
+		(import.meta.env.DEV && import.meta.env.VITE_MOCK_TRAINING !== 'false');
 
 	let records = $state<RlRecord[]>([]);
 	let loading = $state(true);
@@ -24,6 +28,7 @@
 	let trainDialogOpen = $state(false);
 	let trainSubmitting = $state(false);
 	let trainError = $state('');
+	let trainErrorMessage = $state('');
 	let jobId = $state<string | null>(null);
 	let jobStatus = $state<string | null>(null);
 
@@ -69,8 +74,18 @@
 	async function startTraining() {
 		trainSubmitting = true;
 		trainError = '';
+		trainErrorMessage = '';
 		jobId = null;
 		jobStatus = null;
+		if (MOCK_TRAINING) {
+			jobId = `mock-${Date.now()}`;
+			jobStatus = 'pending';
+			trainSubmitting = false;
+			setTimeout(() => {
+				jobStatus = 'completed';
+			}, 2500);
+			return;
+		}
 		try {
 			const res = await fetch(`${API_BASE}/train`, {
 				method: 'POST',
@@ -82,26 +97,31 @@
 				res.status === 501 ||
 				res.status === 503 ||
 				data.error === 'not_implemented' ||
-				data.error === 'modal_not_configured'
+				data.error === 'modal_not_configured' ||
+				data.error === 'modal_app_not_deployed'
 			) {
 				trainError = 'not_implemented';
+				trainErrorMessage = data.message ?? '';
 				return;
 			}
 			if (!res.ok) {
-				trainError = data.message ?? data.error ?? 'Failed to start training';
+				trainError = 'generic';
+				trainErrorMessage = data.message ?? data.error ?? 'Failed to start training';
 				return;
 			}
 			jobId = data.job_id ?? null;
 			jobStatus = data.status ?? 'pending';
 			if (jobId && jobStatus === 'pending') pollJobStatus(jobId);
 		} catch (e) {
-			trainError = e instanceof Error ? e.message : 'Request failed';
+			trainError = 'generic';
+			trainErrorMessage = e instanceof Error ? e.message : 'Request failed';
 		} finally {
 			trainSubmitting = false;
 		}
 	}
 
 	async function pollJobStatus(id: string) {
+		if (MOCK_TRAINING || id.startsWith('mock-')) return;
 		try {
 			const res = await fetch(`${API_BASE}/train/${id}`);
 			if (!res.ok) return;
@@ -119,6 +139,7 @@
 	function closeTrainDialog() {
 		trainDialogOpen = false;
 		trainError = '';
+		trainErrorMessage = '';
 		jobId = null;
 		jobStatus = null;
 	}
@@ -164,20 +185,33 @@
 							}}
 						>
 							{#if trainError === 'not_implemented'}
-								<div class="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-200">
-									Training is not configured. In reflex-backend set <strong>MODAL_TOKEN_ID</strong> and
-									<strong>MODAL_TOKEN_SECRET</strong>, then deploy a Modal app named
-									<code class="rounded bg-black/20 px-1">reflex-rl-training</code> with a function
-									<code class="rounded bg-black/20 px-1">train</code>. See docs/MODAL_INTEGRATION.md.
+								<div class="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-200 space-y-2">
+									{#if trainErrorMessage}
+										<p>{trainErrorMessage}</p>
+									{:else}
+										<p>Training is not configured. In reflex-backend set <strong>MODAL_TOKEN_ID</strong> and
+											<strong>MODAL_TOKEN_SECRET</strong>, then deploy a Modal app named
+											<code class="rounded bg-black/20 px-1">reflex-rl-training</code> with a function
+											<code class="rounded bg-black/20 px-1">train</code>.</p>
+									{/if}
+									<p>See <code class="rounded bg-black/20 px-1">docs/MODAL_INTEGRATION.md</code> for a minimal <code class="rounded bg-black/20 px-1">train.py</code> and <code class="rounded bg-black/20 px-1">modal deploy</code>.</p>
 								</div>
-							{:else if trainError}
-								<p class="text-sm text-red-400">{trainError}</p>
+							{:else if trainError === 'generic'}
+								<p class="text-sm text-red-400">{trainErrorMessage || 'Failed to start training'}</p>
 							{:else if jobId}
 								<div class="rounded-md border border-[rgba(255,255,255,0.18)] bg-muted/30 p-3 text-sm">
-									<p class="font-medium">Job started</p>
+									<p class="font-medium">
+										Job started
+										{#if MOCK_TRAINING}
+											<span class="ml-2 rounded bg-amber-500/20 px-1.5 py-0.5 text-xs font-normal text-amber-300">mock</span>
+										{/if}
+									</p>
 									<p class="font-mono text-xs text-muted-foreground">{jobId}</p>
 									{#if jobStatus}
 										<p class="mt-1">Status: {jobStatus}</p>
+										{#if jobStatus === 'completed' && MOCK_TRAINING}
+											<p class="mt-1 text-muted-foreground">Training run finished.</p>
+										{/if}
 									{/if}
 								</div>
 							{/if}

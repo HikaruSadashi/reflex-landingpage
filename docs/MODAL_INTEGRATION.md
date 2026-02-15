@@ -26,18 +26,15 @@ No Python backend required; no extra knobs beyond the env vars.
 
 ### Minimal Modal app example (Python)
 
-Deploy this so reflex-backend has something to call (same repo or separate):
+This repo includes **modal/train.py**. Deploy so reflex-backend has something to call:
 
-```python
-# train.py — deploy with: modal deploy train.py
-import modal
-app = modal.App("reflex-rl-training")
-
-@app.function(gpu="T4", timeout=3600)
-def train(dataset_snapshot: list = None):
-    # Your RL/training logic; dataset_snapshot is the payload from the frontend.
-    return {"status": "completed", "message": "Training run finished."}
+```bash
+pip install modal
+modal token new   # once; get tokens from https://modal.com/settings
+modal deploy modal/train.py
 ```
+
+The app name must be `reflex-rl-training` and the function `train` (or set `MODAL_APP_NAME` / `MODAL_FUNCTION_NAME` in reflex-backend to match).
 
 ---
 
