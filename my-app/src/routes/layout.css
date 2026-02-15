@@ -74,8 +74,8 @@
 }
 
 @theme inline {
+  --font-sans: 'Roboto', sans-serif;
   --font-serif: 'Instrument Serif', serif;
-  --font-mono: 'IBM Plex Mono', monospace;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -118,7 +118,8 @@
     @apply border-border outline-ring/50;
   }
   body {
-    @apply bg-background text-foreground font-mono;
+    @apply bg-background text-foreground;
+    font-family: var(--font-sans);
     cursor: url('https://cdn.prod.website-files.com/6708f85ff3d3cba6aff436fb/671251b239d7aeb290a31ac5_cursor-default%402x.svg') 2 0, auto;
   }
 }
@@ -145,7 +146,7 @@ a, button, [role="button"], input[type="submit"] {
   letter-spacing: 0.04em;
   text-transform: uppercase;
   white-space: nowrap;
-  font-family: 'IBM Plex Mono', 'Inter', Arial, sans-serif;
+  font-family: var(--font-sans);
   transition: opacity 0.3s ease;
 }
 

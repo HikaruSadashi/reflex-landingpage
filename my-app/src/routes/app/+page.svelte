@@ -51,9 +51,9 @@
 			icon: Database
 		},
 		{
-			value: 'new-relic',
-			label: 'New Relic',
-			description: 'APM, alerts, and deployments',
+			value: 'pagerduty',
+			label: 'PagerDuty',
+			description: 'Incidents, escalation policies, and on-call',
 			icon: Activity
 		},
 		{
@@ -107,7 +107,7 @@
 	<div class="w-full max-w-5xl space-y-16">
 		<header class="space-y-4">
 			<p class="text-muted-foreground text-xs uppercase tracking-[0.2em]">Reflex onboarding</p>
-			<h1 class="text-3xl font-semibold tracking-tight">Quick setup</h1>
+			<h1 class="font-serif text-4xl italic tracking-tight md:text-5xl">Quick setup</h1>
 			<p class="text-muted-foreground text-sm leading-relaxed">Set up your incident workflow in four steps.</p>
 		</header>
 
@@ -129,7 +129,7 @@
 			{#if currentStep === 0}
 				<div class="space-y-12">
 					<div class="space-y-3">
-						<h2 class="text-xl font-semibold">Login</h2>
+						<h2 class="font-serif text-3xl italic tracking-tight">Login</h2>
 						<p class="text-muted-foreground text-sm leading-relaxed">Enter your details to start onboarding.</p>
 					</div>
 
@@ -147,23 +147,30 @@
 			{:else if currentStep === 1}
 				<div class="space-y-12">
 					<div class="space-y-3">
-						<h2 class="text-xl font-semibold">Connect sources</h2>
+						<h2 class="font-serif text-3xl italic tracking-tight">Connect sources</h2>
 						<p class="text-muted-foreground text-sm leading-relaxed">Select one or more sources to continue.</p>
 					</div>
 
 					<Choicebox.Root bind:value={connectedSources} multiple class="grid gap-6 md:grid-cols-2" name="sources">
 						{#each sourceOptions as source}
-							<Choicebox.Item value={source.value} class="group min-h-28 justify-between p-6">
-								<div class="flex items-start gap-3">
-									<source.icon class="mt-0.5 size-5" />
-									<div class="space-y-1">
-										<Choicebox.Title class="text-sm">{source.label}</Choicebox.Title>
-										<Choicebox.Description class="text-xs leading-relaxed">
-											{source.description}
-										</Choicebox.Description>
-									</div>
+							<Choicebox.Item
+								value={source.value}
+								class="group min-h-28 w-full grid-cols-[auto_1fr_auto] items-center gap-4 p-6 text-left"
+							>
+								<div class="text-muted-foreground flex size-10 items-center justify-center rounded-md border border-border/60 bg-background/50">
+									<source.icon class="size-5" />
 								</div>
-								<Choicebox.Indicator />
+
+								<div class="min-w-0 space-y-1">
+									<Choicebox.Title class="text-base">{source.label}</Choicebox.Title>
+									<Choicebox.Description class="text-sm leading-relaxed text-muted-foreground/85">
+										{source.description}
+									</Choicebox.Description>
+								</div>
+
+								<div class="self-center">
+									<Choicebox.Indicator />
+								</div>
 							</Choicebox.Item>
 						{/each}
 					</Choicebox.Root>
@@ -171,9 +178,9 @@
 			{:else if currentStep === 2}
 				<div class="space-y-12">
 					<div class="space-y-3">
-						<h2 class="text-xl font-semibold">Create triggers</h2>
+						<h2 class="font-serif text-3xl italic tracking-tight">Create triggers</h2>
 						<p class="text-muted-foreground text-sm leading-relaxed">Describe a trigger in natural language.</p>
-					</div>
+									</div>
 
 					<div class="space-y-6">
 						<label for="trigger" class="text-sm font-medium">Trigger rule</label>
@@ -198,7 +205,7 @@
 			{:else}
 				<div class="space-y-12">
 					<div class="space-y-3">
-						<h2 class="text-xl font-semibold">Project name</h2>
+						<h2 class="font-serif text-3xl italic tracking-tight">Project name</h2>
 						<p class="text-muted-foreground text-sm leading-relaxed">Name this project before finishing setup.</p>
 					</div>
 
