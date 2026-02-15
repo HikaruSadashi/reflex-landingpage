@@ -2,10 +2,19 @@
 	import { browser } from '$app/environment';
 	import { onMount } from 'svelte';
 	import * as Stepper from '$lib/components/ui/stepper';
+	import * as Choicebox from '$lib/components/ui/choicebox';
 	import { Button } from '$lib/components/ui/button';
 	import { Input } from '$lib/components/ui/input';
 	import { Textarea } from '$lib/components/ui/textarea';
-	import { CheckCircle2, ArrowLeft, ArrowRight, Github, Database } from '@lucide/svelte';
+	import {
+		CheckCircle2,
+		ArrowLeft,
+		ArrowRight,
+		Github,
+		Database,
+		Server,
+		Activity
+	} from '@lucide/svelte';
 
 	const NAME_STORAGE_KEY = 'reflex.onboarding.name';
 	const EMAIL_STORAGE_KEY = 'reflex.onboarding.email';
@@ -13,8 +22,7 @@
 	let currentStep = $state(0);
 	let name = $state('');
 	let email = $state('');
-	let githubConnected = $state(false);
-	let datadogConnected = $state(false);
+	let connectedSources = $state([]);
 	let triggerText = $state('');
 	let setupComplete = $state(false);
 
@@ -26,6 +34,32 @@
 
 	const triggerExample =
 		'If you see repeated "database connection timeout" logs for 2 minutes, look for similar incidents in past production logs, identify the last successful mitigation, and run that playbook in dry-run mode first.';
+	const sourceOptions = [
+		{
+			value: 'github',
+			label: 'GitHub',
+			description: 'Repos, workflows, and incidents',
+			icon: Github
+		},
+		{
+			value: 'datadog',
+			label: 'Datadog',
+			description: 'Metrics, monitors, and traces',
+			icon: Database
+		},
+		{
+			value: 'new-relic',
+			label: 'New Relic',
+			description: 'APM, alerts, and deployments',
+			icon: Activity
+		},
+		{
+			value: 'cloudwatch',
+			label: 'CloudWatch',
+			description: 'Logs, alarms, and telemetry',
+			icon: Server
+		}
+	];
 
 	onMount(() => {
 		const storedName = localStorage.getItem(NAME_STORAGE_KEY);
@@ -42,7 +76,7 @@
 	});
 
 	const canContinueFromLogin = $derived(name.trim().length > 0 && email.trim().length > 0);
-	const hasConnectedSource = $derived(githubConnected || datadogConnected);
+	const hasConnectedSource = $derived(connectedSources.length > 0);
 	const canFinish = $derived(triggerText.trim().length > 0);
 
 	function goNext() {
@@ -116,46 +150,25 @@
 				<div class="space-y-12">
 					<div class="space-y-3">
 						<h2 class="text-xl font-semibold">Connect sources</h2>
-						<p class="text-muted-foreground text-sm leading-relaxed">Connect at least one source to continue.</p>
+						<p class="text-muted-foreground text-sm leading-relaxed">Select one or more sources to continue.</p>
 					</div>
 
-					<div class="grid gap-10 md:grid-cols-2">
-						<button
-							type="button"
-							class="border-border hover:border-primary/40 hover:bg-accent/50 flex min-h-28 items-center justify-between rounded-lg border p-6 text-left transition-colors"
-							onclick={() => (githubConnected = !githubConnected)}
-						>
-							<div class="flex items-center gap-3">
-								<Github class="size-5" />
-								<div class="space-y-1">
-									<p class="text-sm font-medium">GitHub</p>
-									<p class="text-muted-foreground text-xs leading-relaxed">Repos, workflows, and incidents</p>
+					<Choicebox.Root bind:value={connectedSources} multiple class="grid gap-6 md:grid-cols-2" name="sources">
+						{#each sourceOptions as source}
+							<Choicebox.Item value={source.value} class="group min-h-28 justify-between p-6">
+								<div class="flex items-start gap-3">
+									<source.icon class="mt-0.5 size-5" />
+									<div class="space-y-1">
+										<Choicebox.Title class="text-sm">{source.label}</Choicebox.Title>
+										<Choicebox.Description class="text-xs leading-relaxed">
+											{source.description}
+										</Choicebox.Description>
+									</div>
 								</div>
-							</div>
-							{#if githubConnected}
-								<CheckCircle2 class="text-primary size-5" />
-							{/if}
-						</button>
-
-						<button
-							type="button"
-							class="border-border hover:border-primary/40 hover:bg-accent/50 flex min-h-28 items-center justify-between rounded-lg border p-6 text-left transition-colors"
-							onclick={() => (datadogConnected = !datadogConnected)}
-						>
-							<div class="flex items-center gap-3">
-								<div class="bg-secondary text-secondary-foreground flex size-5 items-center justify-center rounded text-[10px] font-semibold">
-									DD
-								</div>
-								<div class="space-y-1">
-									<p class="text-sm font-medium">Datadog</p>
-									<p class="text-muted-foreground text-xs leading-relaxed">Metrics, monitors, and traces</p>
-								</div>
-							</div>
-							{#if datadogConnected}
-								<CheckCircle2 class="text-primary size-5" />
-							{/if}
-						</button>
-					</div>
+								<Choicebox.Indicator />
+							</Choicebox.Item>
+						{/each}
+					</Choicebox.Root>
 				</div>
 			{:else}
 				<div class="space-y-12">
