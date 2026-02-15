@@ -38,7 +38,11 @@
 		>
 			{#each TOOLS as tool}
 				{@const Icon = tool.icon}
-				<ToggleGroup.Item value={tool.id} class="gap-1.5" size="sm" variant="outline">
+				<ToggleGroup.Item
+					value={tool.id}
+					class="gap-1.5 transition-[transform,box-shadow] duration-75 ease-out active:scale-[0.98] active:translate-y-px active:shadow-inner" size="sm"
+					variant="outline"
+				>
 					<Icon class="size-4 shrink-0" />
 					<span>{tool.label}</span>
 					{#if tool.suffix}
