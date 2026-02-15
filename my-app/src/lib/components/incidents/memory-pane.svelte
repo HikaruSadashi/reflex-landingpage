@@ -1,28 +1,23 @@
 <script lang="ts">
 	// @ts-nocheck
 	import { Button } from '$lib/components/ui/button/index.js';
-	import { Input } from '$lib/components/ui/input/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import Textarea from '$lib/components/ui/textarea/textarea.svelte';
 
 	let {
-		title,
 		body,
 		lastUpdatedBy,
 		isSaving,
 		saveError,
 		active,
-		onTitleInput,
 		onBodyInput,
 		onSave
 	}: {
-		title: string;
 		body: string;
 		lastUpdatedBy: 'user' | 'ai' | '';
 		isSaving: boolean;
 		saveError: string;
 		active: boolean;
-		onTitleInput: (value: string) => void;
 		onBodyInput: (value: string) => void;
 		onSave: () => void;
 	} = $props();
@@ -45,12 +40,6 @@
 	</div>
 
 	<div class={`space-y-3 rounded-md border p-3 ${active ? 'agent-working-border' : 'border-border'}`}>
-		<Input
-			placeholder="Memory title"
-			value={title}
-			oninput={(e) => onTitleInput(e.currentTarget.value)}
-			onchange={(e) => onTitleInput(e.currentTarget.value)}
-		/>
 		<Textarea
 			class="min-h-[300px] resize-none"
 			placeholder="Write persistent memory notes..."

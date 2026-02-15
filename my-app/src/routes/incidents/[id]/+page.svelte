@@ -12,6 +12,7 @@
 	import * as Choicebox from '$lib/components/ui/choicebox/index.js';
 	import LiveReasoningPane from '$lib/components/incidents/live-reasoning-pane.svelte';
 	import MemoryPane from '$lib/components/incidents/memory-pane.svelte';
+	import PostmortemPanel from '$lib/components/incidents/postmortem-panel.svelte';
 	import { ArrowLeft, RefreshCcw, Loader2 } from '@lucide/svelte';
 
 	type IncidentSummary = {
@@ -57,9 +58,13 @@
 	let incident = $state<IncidentSummary | null>(null);
 	let incidentId = $derived(Number($page.params.id));
 	let stream: EventSource | null = null;
+	let postmortemStream: EventSource | null = null;
 	let streamState = $state<StreamState>('idle');
+	let postmortemState = $state<'idle' | 'running' | 'done' | 'error'>('idle');
 	let streamError = $state('');
 	let reasoningMarkdown = $state('');
+	let postmortemMarkdown = $state('');
+	let postmortemError = $state('');
 	let actionOptions = $state<ActionOption[]>([]);
 	let visibleActionOptions = $state<ActionOption[]>([]);
 	let selectedActionId = $state('');
@@ -73,6 +78,7 @@
 	let memoryStreamActive = $state(false);
 	let memoryPoller: ReturnType<typeof setInterval> | null = null;
 	let actionOptionTimers: ReturnType<typeof setTimeout>[] = [];
+	let sessionHydrated = $state(false);
 
 	function sessionStorageKey(id: number) {
 		return `reflex.incident.session.${id}`;
@@ -84,7 +90,7 @@
 	}
 
 	function persistSession() {
-		if (!incident || typeof localStorage === 'undefined') return;
+		if (!sessionHydrated || !incident || typeof localStorage === 'undefined') return;
 		localStorage.setItem(
 			sessionStorageKey(incident.id),
 			JSON.stringify({
@@ -245,7 +251,6 @@
 				method: 'PUT',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({
-					title: memoryTitle || memoryEntry.title,
 					body_markdown: memoryBody || memoryEntry.body_markdown,
 					tags: memoryEntry.tags,
 					confidence_text: memoryEntry.confidence_text
@@ -268,35 +273,14 @@
 		}
 	}
 
-	function startStream({
-		rerun = false,
-		action,
-		append = false
-	}: { rerun?: boolean; action?: string; append?: boolean } = {}) {
-		if (!incident) return;
-		stopStream();
-		streamError = '';
-		if (!append) {
-			reasoningMarkdown = '';
-			setActionOptions([], false);
-			selectedActionId = '';
-		} else {
-			reasoningMarkdown += `\n\n---\n### Executing action: ${action}\n`;
+	function stopPostmortemStream() {
+		if (postmortemStream) {
+			postmortemStream.close();
+			postmortemStream = null;
 		}
-		streamState = 'running';
-		incident = { ...incident, investigation_state: 'running', investigation_last_error: null };
-		const params = new URLSearchParams();
-		if (rerun) params.set('rerun', 'true');
-		if (action) params.set('action', action);
-		const streamUrl = `${API_BASE}/stream/incidents/${incident.id}${params.size ? `?${params.toString()}` : ''}`;
-		const es = new EventSource(streamUrl);
-		stream = es;
+	}
 
-		es.addEventListener('investigation_delta', (ev) => {
-			const data = JSON.parse((ev as MessageEvent).data);
-			reasoningMarkdown += data.delta ?? '';
-		});
-
+	function attachMemoryStreamHandlers(es: EventSource) {
 		es.addEventListener('memory_write_start', (ev) => {
 			memoryStreamActive = true;
 			memoryStreamBuffer = '';
@@ -328,6 +312,40 @@
 			}
 			memoryStreamBuffer = '';
 		});
+	}
+
+	function startStream({
+		rerun = false,
+		action,
+		append = false
+	}: { rerun?: boolean; action?: string; append?: boolean } = {}) {
+		if (!incident) return;
+		stopStream();
+		streamError = '';
+		if (!append) {
+			reasoningMarkdown = '';
+			setActionOptions([], false);
+			selectedActionId = '';
+			postmortemState = 'idle';
+			postmortemMarkdown = '';
+			postmortemError = '';
+		} else {
+			reasoningMarkdown += `\n\n---\n### Executing action: ${action}\n`;
+		}
+		streamState = 'running';
+		incident = { ...incident, investigation_state: 'running', investigation_last_error: null };
+		const params = new URLSearchParams();
+		if (rerun) params.set('rerun', 'true');
+		if (action) params.set('action', action);
+		const streamUrl = `${API_BASE}/stream/incidents/${incident.id}${params.size ? `?${params.toString()}` : ''}`;
+		const es = new EventSource(streamUrl);
+		stream = es;
+
+		es.addEventListener('investigation_delta', (ev) => {
+			const data = JSON.parse((ev as MessageEvent).data);
+			reasoningMarkdown += data.delta ?? '';
+		});
+		attachMemoryStreamHandlers(es);
 
 		es.addEventListener('action_options', (ev) => {
 			try {
@@ -341,6 +359,7 @@
 		es.addEventListener('done', () => {
 			streamState = 'done';
 			memoryStreamActive = false;
+			void loadMemory(true);
 			if (incident) {
 				incident = {
 					...incident,
@@ -375,6 +394,44 @@
 		});
 	}
 
+	function startPostmortemStream() {
+		if (!incident || postmortemState === 'running') return;
+		stopPostmortemStream();
+		postmortemError = '';
+		postmortemMarkdown = '';
+		postmortemState = 'running';
+
+		const es = new EventSource(`${API_BASE}/stream/incidents/${incident.id}/postmortem`);
+		postmortemStream = es;
+		attachMemoryStreamHandlers(es);
+
+		es.addEventListener('postmortem_delta', (ev) => {
+			const data = JSON.parse((ev as MessageEvent).data) as { delta?: string };
+			postmortemMarkdown += data.delta ?? '';
+		});
+
+		es.addEventListener('done', () => {
+			postmortemState = 'done';
+			memoryStreamActive = false;
+			void loadMemory(true);
+			es.close();
+			postmortemStream = null;
+		});
+
+		es.addEventListener('error', (ev) => {
+			postmortemState = 'error';
+			memoryStreamActive = false;
+			try {
+				const data = JSON.parse((ev as MessageEvent).data);
+				postmortemError = data.message ?? 'Postmortem stream error';
+			} catch {
+				postmortemError = 'Postmortem stream error';
+			}
+			es.close();
+			postmortemStream = null;
+		});
+	}
+
 	function runSelectedAction(value: string) {
 		const selected = actionOptions.find((option) => option.id === value);
 		if (!selected || streamState === 'running') return;
@@ -394,6 +451,7 @@
 		}
 		loading = true;
 		error = '';
+		sessionHydrated = false;
 		try {
 			incident = await findIncidentById(incidentId);
 			if (!incident) {
@@ -406,7 +464,11 @@
 				setActionOptions([], false);
 				selectedActionId = '';
 			}
+			sessionHydrated = true;
 			streamState = 'idle';
+			postmortemState = 'idle';
+			postmortemMarkdown = '';
+			postmortemError = '';
 			await loadMemory();
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to load incident';
@@ -426,6 +488,7 @@
 
 	onDestroy(() => {
 		stopStream();
+		stopPostmortemStream();
 		clearActionOptionTimers();
 		if (memoryPoller) clearInterval(memoryPoller);
 	});
@@ -499,9 +562,19 @@
 								<Table.Cell>{formatDateTime(incident.started_at)}</Table.Cell>
 								<Table.Cell>{incident.resolved_at ? formatDateTime(incident.resolved_at) : 'In progress'}</Table.Cell>
 								<Table.Cell>
-									<Badge variant={investigationVariant(incident.investigation_state)}>
+									<span
+										class={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium ${
+											incident.investigation_state === 'done'
+												? 'border-green-500/40 bg-green-500/10 text-green-400'
+												: incident.investigation_state === 'running'
+													? 'border-violet-500/40 bg-violet-500/10 text-violet-300'
+													: incident.investigation_state === 'error'
+														? 'border-red-500/40 bg-red-500/10 text-red-400'
+														: 'border-border bg-muted/30 text-foreground'
+										}`}
+									>
 										{incident.investigation_state}
-									</Badge>
+									</span>
 								</Table.Cell>
 							</Table.Row>
 						</Table.Body>
@@ -524,16 +597,11 @@
 
 					<Resizable.Pane defaultSize={50} minSize={22} collapsible={true} collapsedSize={0}>
 						<MemoryPane
-							title={memoryTitle}
 							body={memoryBody}
 							lastUpdatedBy={memoryEntry?.last_updated_by ?? ''}
 							isSaving={memorySaving}
 							saveError={memorySaveError}
 							active={streamState === 'running' || memoryStreamActive}
-							onTitleInput={(value) => {
-								memoryTitle = value;
-								memoryDirty = true;
-							}}
 							onBodyInput={(value) => {
 								memoryBody = value;
 								memoryDirty = true;
@@ -553,10 +621,10 @@
 						</div>
 						<Choicebox.Root bind:value={selectedActionId} onValueChange={runSelectedAction}>
 							{#each visibleActionOptions as option, idx (option.id)}
-								<div transition:fly={{ y: 12, duration: 240, delay: idx * 70 }}>
+								<div class="w-full" transition:fly={{ y: 12, duration: 240, delay: idx * 70 }}>
 									<Choicebox.Item
 										value={option.id}
-										class="group items-center justify-between rounded-xl border-border/70 bg-background/40 px-4 py-3 transition-all duration-300 hover:border-primary/35 hover:bg-accent/25"
+										class="group w-full items-center justify-between rounded-xl border-border/70 bg-background/40 px-4 py-3 transition-all duration-300 hover:border-primary/35 hover:bg-accent/25"
 									>
 										<div class="min-w-0 text-left">
 											<Choicebox.Title class="line-clamp-1 text-base text-foreground">
@@ -574,6 +642,15 @@
 							{/each}
 						</Choicebox.Root>
 					</div>
+				{/if}
+
+				{#if streamState === 'done' || postmortemState !== 'idle'}
+					<PostmortemPanel
+						state={postmortemState}
+						content={postmortemMarkdown}
+						error={postmortemError}
+						onCreate={startPostmortemStream}
+					/>
 				{/if}
 			</div>
 		{/if}

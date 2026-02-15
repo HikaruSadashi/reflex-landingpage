@@ -14,7 +14,7 @@
 		getPaginationRowModel,
 		getSortedRowModel
 	} from '@tanstack/table-core';
-	import { createRawSnippet, onMount } from 'svelte';
+	import { createRawSnippet, onDestroy, onMount } from 'svelte';
 	import * as Table from '$lib/components/ui/table/index.js';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import * as DropdownMenu from '$lib/components/ui/dropdown-menu/index.js';
@@ -58,6 +58,8 @@
 	let nextCursor = $state<number | null>(null);
 	let hasMore = $state(false);
 	let loadingMore = $state(false);
+	let refreshTimer: ReturnType<typeof setInterval> | null = null;
+	let newIncidentIds = $state<number[]>([]);
 
 	let pagination = $state<PaginationState>({ pageIndex: 0, pageSize: 10 });
 	let sorting = $state<SortingState>([]);
@@ -154,6 +156,10 @@
 
 	function incidentStateClass(row: IncidentRow) {
 		return row.investigation_state === 'running' ? 'agent-working-row' : '';
+	}
+
+	function newIncidentClass(id: number) {
+		return newIncidentIds.includes(id) ? 'new-incident-row' : '';
 	}
 
 	const columns: ColumnDef<IncidentRow>[] = [
@@ -323,10 +329,43 @@
 		}
 	}
 
+	async function refreshIncidentsSilently() {
+		if (loading || loadingMore) return;
+		try {
+			const data = await fetchIncidents();
+			const incoming = data.incidents ?? [];
+			const existingIds = new Set(rows.map((r) => r.id));
+			const newlyAdded = incoming.filter((r) => !existingIds.has(r.id)).map((r) => r.id);
+			const merged = new Map<number, IncidentRow>();
+			for (const row of [...incoming, ...rows]) {
+				if (!merged.has(row.id)) merged.set(row.id, row);
+			}
+			rows = [...merged.values()].sort((a, b) => b.id - a.id);
+			nextCursor = data.next_cursor ?? nextCursor;
+			hasMore = !!data.has_more;
+
+			if (newlyAdded.length > 0) {
+				newIncidentIds = [...new Set([...newIncidentIds, ...newlyAdded])];
+				setTimeout(() => {
+					newIncidentIds = newIncidentIds.filter((id) => !newlyAdded.includes(id));
+				}, 1200);
+			}
+		} catch {
+			// Ignore polling failures to avoid interrupting current table state.
+		}
+	}
+
 	onMount(() => {
 		const stored = localStorage.getItem(PROJECT_STORAGE_KEY);
 		if (stored?.trim()) projectName = stored.trim();
 		void loadInitialIncidents();
+		refreshTimer = setInterval(() => {
+			void refreshIncidentsSilently();
+		}, 4000);
+	});
+
+	onDestroy(() => {
+		if (refreshTimer) clearInterval(refreshTimer);
 	});
 </script>
 
@@ -453,7 +492,7 @@
 						<Table.Body>
 							{#each table.getRowModel().rows as row (row.id)}
 								<Table.Row
-									class={`cursor-pointer transition-colors hover:bg-accent/30 ${incidentStateClass(row.original)}`}
+									class={`cursor-pointer transition-colors hover:bg-accent/30 ${incidentStateClass(row.original)} ${newIncidentClass(row.original.id)}`}
 									onclick={() => goto(`/incidents/${row.original.id}`)}
 								>
 									{#each row.getVisibleCells() as cell (cell.id)}
