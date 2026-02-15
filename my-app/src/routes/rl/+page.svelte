@@ -15,7 +15,7 @@
 		recorded_at: string;
 	};
 
-	const TRAIN_BASE =
+	const API_BASE =
 		import.meta.env.VITE_API_BASE_URL ?? 'https://reflexbackend-r2rk.onrender.com';
 
 	let records = $state<RlRecord[]>([]);
@@ -42,8 +42,16 @@
 		loading = true;
 		error = '';
 		try {
-			const res = await fetch('/api/rl-dataset');
-			if (!res.ok) throw new Error('Failed to load dataset');
+			const res = await fetch(`${API_BASE}/rl-dataset`);
+			if (!res.ok) {
+				records = [];
+				return;
+			}
+			const contentType = res.headers.get('content-type') ?? '';
+			if (!contentType.includes('application/json')) {
+				records = [];
+				return;
+			}
 			records = await res.json();
 		} catch (e) {
 			error = e instanceof Error ? e.message : 'Failed to load dataset';
@@ -59,7 +67,7 @@
 		jobId = null;
 		jobStatus = null;
 		try {
-			const res = await fetch(`${TRAIN_BASE}/train`, {
+			const res = await fetch(`${API_BASE}/train`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ dataset_snapshot: records })
@@ -90,7 +98,7 @@
 
 	async function pollJobStatus(id: string) {
 		try {
-			const res = await fetch(`${TRAIN_BASE}/train/${id}`);
+			const res = await fetch(`${API_BASE}/train/${id}`);
 			if (!res.ok) return;
 			const data = await res.json();
 			if (data.error === 'not_implemented') return;

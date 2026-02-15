@@ -5,9 +5,10 @@
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Response } from '$lib/components/ai-elements/response/index.js';
 	import Textarea from '$lib/components/ui/textarea/textarea.svelte';
-	import { FileText, Loader2 } from '@lucide/svelte';
+	import { FileText, Loader2, Pencil, Eye } from '@lucide/svelte';
 
 	type PanelState = 'idle' | 'running' | 'done' | 'error';
+	type ViewMode = 'render' | 'edit';
 
 	let {
 		panelState,
@@ -29,7 +30,9 @@
 		onCreate: () => void;
 	} = $props();
 
+	let viewMode = $state<ViewMode>('render');
 	let scroller = $state<HTMLDivElement | null>(null);
+
 	async function scrollToBottom() {
 		if (!scroller) return;
 		await tick();
@@ -40,6 +43,11 @@
 		content;
 		panelState;
 		void scrollToBottom();
+	});
+
+	// When generation finishes, show rendered markdown
+	$effect(() => {
+		if (panelState === 'done') viewMode = 'render';
 	});
 </script>
 
@@ -64,8 +72,15 @@
 		>
 			{#if panelState === 'error' && error}
 				<p class="text-sm text-red-400">{error}</p>
-			{:else if content}
+			{:else if content && viewMode === 'render'}
 				<Response content={content} class="prose prose-sm dark:prose-invert max-w-none" />
+			{:else if panelState === 'done' && viewMode === 'edit'}
+				<Textarea
+					class="min-h-[200px] w-full resize-none border-0 bg-transparent p-0 focus-visible:ring-0"
+					value={editValue}
+					oninput={(e) => onEditInput(e.currentTarget.value)}
+					onchange={(e) => onEditInput(e.currentTarget.value)}
+				/>
 			{:else if panelState === 'running'}
 				<p class="text-sm text-muted-foreground">Generating postmortem...</p>
 			{:else}
@@ -77,19 +92,26 @@
 				<Loader2 class="size-3 animate-spin" />
 				Streaming markdown response...
 			</div>
-		{:else if panelState === 'done'}
-			<div class="mt-3 space-y-2">
-				<Textarea
-					class="min-h-[180px] resize-none"
-					value={editValue}
-					oninput={(e) => onEditInput(e.currentTarget.value)}
-					onchange={(e) => onEditInput(e.currentTarget.value)}
-				/>
-				<div class="flex justify-end">
+		{:else if panelState === 'done' && content}
+			<div class="mt-3 flex flex-wrap items-center justify-end gap-2">
+				<Button
+					variant="outline"
+					size="sm"
+					onclick={() => (viewMode = viewMode === 'render' ? 'edit' : 'render')}
+				>
+					{#if viewMode === 'render'}
+						<Pencil class="size-4" />
+						Edit
+					{:else}
+						<Eye class="size-4" />
+						Preview
+					{/if}
+				</Button>
+				{#if viewMode === 'edit'}
 					<Button variant="outline" size="sm" onclick={onSave} disabled={isSaving}>
-						{isSaving ? 'Saving...' : 'Save post mortem'}
+						{isSaving ? 'Saving...' : 'Save'}
 					</Button>
-				</div>
+				{/if}
 			</div>
 		{/if}
 	{/if}
