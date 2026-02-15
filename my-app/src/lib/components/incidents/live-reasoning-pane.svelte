@@ -5,15 +5,21 @@
 	import { Response } from '$lib/components/ai-elements/response/index.js';
 
 	type StreamState = 'idle' | 'running' | 'done' | 'error';
+	type KeywordHighlight = {
+		term: string;
+		className?: string;
+	};
 
 	let {
 		streamState,
 		streamError,
-		reasoningMarkdown
+		reasoningMarkdown,
+		keywordHighlights = []
 	}: {
 		streamState: StreamState;
 		streamError: string;
 		reasoningMarkdown: string;
+		keywordHighlights?: KeywordHighlight[];
 	} = $props();
 
 	let scroller: HTMLDivElement | null = null;
@@ -27,6 +33,21 @@
 	$effect(() => {
 		reasoningMarkdown;
 		void scrollToBottom();
+	});
+
+	function escapeRegExp(term: string) {
+		return term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+	}
+
+	let highlightedReasoning = $derived.by(() => {
+		let content = reasoningMarkdown ?? '';
+		for (const highlight of keywordHighlights) {
+			if (!highlight?.term) continue;
+			const regex = new RegExp(escapeRegExp(highlight.term), 'gi');
+			const className = highlight.className ?? 'reason-keyword';
+			content = content.replace(regex, (match) => `<span class="${className}">${match}</span>`);
+		}
+		return content;
 	});
 </script>
 
@@ -44,8 +65,8 @@
 	>
 		{#if streamError}
 			<p class="text-sm text-red-500">{streamError}</p>
-		{:else if reasoningMarkdown}
-			<Response content={reasoningMarkdown} class="prose prose-sm dark:prose-invert max-w-none" />
+		{:else if highlightedReasoning}
+			<Response content={highlightedReasoning} class="prose prose-sm dark:prose-invert max-w-none" />
 		{:else}
 			<p class="text-sm text-muted-foreground">Waiting for model reasoning...</p>
 		{/if}

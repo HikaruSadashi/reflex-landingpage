@@ -22,6 +22,8 @@
 		<div class="mx-auto flex h-14 max-w-6xl items-center justify-between px-6">
 			<a href="/" class="font-serif text-xl italic tracking-tight text-foreground">reflex</a>
 			<div class="hidden items-center gap-8 md:flex">
+				<a href="/incidents" class="text-xs uppercase tracking-widest text-muted-foreground transition-colors duration-300 hover:text-foreground">Incidents</a>
+				<a href="/rl" class="text-xs uppercase tracking-widest text-muted-foreground transition-colors duration-300 hover:text-foreground">RL</a>
 				<a href="/#demo" class="text-xs uppercase tracking-widest text-muted-foreground transition-colors duration-300 hover:text-foreground">Demo</a>
 				<a href="/#how-it-works" class="text-xs uppercase tracking-widest text-muted-foreground transition-colors duration-300 hover:text-foreground">How it works</a>
 				<a href="/#features" class="text-xs uppercase tracking-widest text-muted-foreground transition-colors duration-300 hover:text-foreground">Features</a>

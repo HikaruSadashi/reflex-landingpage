@@ -269,6 +269,17 @@ body:has([data-cursor]:hover) .cursor {
   background: rgba(177, 143, 189, 0.75);
 }
 
+.reason-keyword {
+  color: rgba(177, 143, 189, 1);
+  font-weight: 600;
+}
+
+.reason-keyword-pulse {
+  color: rgba(161, 92, 168, 1);
+  font-weight: 700;
+  animation: blink 1.1s step-end infinite;
+}
+
 /* Grain overlay */
 .grain::before {
   content: '';

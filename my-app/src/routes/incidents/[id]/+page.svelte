@@ -2,7 +2,7 @@
 	// @ts-nocheck
 	import { page } from '$app/stores';
 	import { onDestroy, onMount } from 'svelte';
-	import { fly } from 'svelte/transition';
+	import { fade, fly } from 'svelte/transition';
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Badge } from '$lib/components/ui/badge/index.js';
 	import { Spinner } from '$lib/components/ui/spinner/index.js';
@@ -12,8 +12,9 @@
 	import * as Choicebox from '$lib/components/ui/choicebox/index.js';
 	import LiveReasoningPane from '$lib/components/incidents/live-reasoning-pane.svelte';
 	import MemoryPane from '$lib/components/incidents/memory-pane.svelte';
+	import LlmToolsPanel from '$lib/components/incidents/llm-tools-panel.svelte';
 	import PostmortemPanel from '$lib/components/incidents/postmortem-panel.svelte';
-	import { ArrowLeft, RefreshCcw, Loader2 } from '@lucide/svelte';
+	import { ArrowLeft, RefreshCcw, Loader2, CheckCircle2 } from '@lucide/svelte';
 
 	type IncidentSummary = {
 		id: number;
@@ -53,6 +54,23 @@
 	};
 	const API_BASE = import.meta.env.VITE_API_BASE_URL ?? 'https://reflexbackend-r2rk.onrender.com';
 
+	async function recordRlEvent(payload: {
+		incident_id: number;
+		incident_title?: string;
+		action_type: string;
+		outcome: 'pending' | 'success' | 'failure' | 'recorded';
+	}) {
+		try {
+			await fetch('/api/rl-dataset', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(payload)
+			});
+		} catch {
+			// best-effort; do not block UI
+		}
+	}
+
 	let loading = $state(true);
 	let error = $state('');
 	let incident = $state<IncidentSummary | null>(null);
@@ -65,11 +83,13 @@
 	let reasoningMarkdown = $state('');
 	let postmortemMarkdown = $state('');
 	let postmortemError = $state('');
+	let postmortemMemoryEntryId = $state<number | null>(null);
+	let postmortemDraft = $state('');
+	let postmortemSaving = $state(false);
 	let actionOptions = $state<ActionOption[]>([]);
 	let visibleActionOptions = $state<ActionOption[]>([]);
 	let selectedActionId = $state('');
 	let memoryEntry = $state<MemoryEntry | null>(null);
-	let memoryTitle = $state('');
 	let memoryBody = $state('');
 	let memoryDirty = $state(false);
 	let memorySaving = $state(false);
@@ -96,7 +116,10 @@
 			JSON.stringify({
 				reasoningMarkdown,
 				actionOptions,
-				selectedActionId
+				selectedActionId,
+				postmortemMarkdown,
+				postmortemState,
+				postmortemMemoryEntryId
 			})
 		);
 	}
@@ -110,11 +133,20 @@
 				reasoningMarkdown?: string;
 				actionOptions?: ActionOption[];
 				selectedActionId?: string;
+				postmortemMarkdown?: string;
+				postmortemState?: 'idle' | 'running' | 'done' | 'error';
+				postmortemMemoryEntryId?: number | null;
 			};
 			reasoningMarkdown = parsed.reasoningMarkdown ?? '';
 			actionOptions = Array.isArray(parsed.actionOptions) ? parsed.actionOptions : [];
 			visibleActionOptions = [...actionOptions];
 			selectedActionId = parsed.selectedActionId ?? '';
+			postmortemMarkdown = parsed.postmortemMarkdown ?? '';
+			postmortemDraft = postmortemMarkdown;
+			postmortemState = parsed.postmortemState ?? 'idle';
+			postmortemMemoryEntryId = Number.isFinite(Number(parsed.postmortemMemoryEntryId))
+				? Number(parsed.postmortemMemoryEntryId)
+				: null;
 			return true;
 		} catch {
 			// Ignore corrupted session payload.
@@ -143,6 +175,9 @@
 		reasoningMarkdown;
 		actionOptions;
 		selectedActionId;
+		postmortemMarkdown;
+		postmortemState;
+		postmortemMemoryEntryId;
 		persistSession();
 	});
 
@@ -166,13 +201,6 @@
 		const v = severity.toLowerCase();
 		if (v === 'critical') return 'destructive';
 		if (v === 'warn') return 'secondary';
-		return 'outline';
-	}
-
-	function investigationVariant(state: IncidentSummary['investigation_state']) {
-		if (state === 'running') return 'secondary';
-		if (state === 'done') return 'outline';
-		if (state === 'error') return 'destructive';
 		return 'outline';
 	}
 
@@ -227,7 +255,6 @@
 		memoryEntry = entry;
 		if (!entry) return;
 		if (force || !memoryDirty) {
-			memoryTitle = entry.title;
 			memoryBody = entry.body_markdown;
 			memoryDirty = false;
 		}
@@ -284,10 +311,7 @@
 		es.addEventListener('memory_write_start', (ev) => {
 			memoryStreamActive = true;
 			memoryStreamBuffer = '';
-			const data = JSON.parse((ev as MessageEvent).data) as { title?: string };
-			if (data.title) {
-				memoryTitle = data.title;
-			}
+			JSON.parse((ev as MessageEvent).data);
 		});
 
 		es.addEventListener('memory_write_delta', (ev) => {
@@ -326,8 +350,12 @@
 			reasoningMarkdown = '';
 			setActionOptions([], false);
 			selectedActionId = '';
-			postmortemState = 'idle';
-			postmortemMarkdown = '';
+			postmortemState = incident?.investigation_state === 'done' ? postmortemState : 'idle';
+			if (postmortemState === 'idle') {
+				postmortemMarkdown = '';
+				postmortemDraft = '';
+				postmortemMemoryEntryId = null;
+			}
 			postmortemError = '';
 		} else {
 			reasoningMarkdown += `\n\n---\n### Executing action: ${action}\n`;
@@ -356,14 +384,27 @@
 			}
 		});
 
-		es.addEventListener('done', () => {
+		es.addEventListener('done', (ev) => {
+			let investigationState: 'pending' | 'running' | 'done' | 'error' = 'pending';
+			try {
+				const data = JSON.parse((ev as MessageEvent).data) as { investigation_state?: typeof investigationState };
+				investigationState = data.investigation_state ?? investigationState;
+			} catch {
+				investigationState = selectedActionId ? 'done' : 'pending';
+			}
 			streamState = 'done';
 			memoryStreamActive = false;
 			void loadMemory(true);
 			if (incident) {
+				void recordRlEvent({
+					incident_id: incident.id,
+					incident_title: incident.title,
+					action_type: 'investigation_complete',
+					outcome: investigationState === 'done' ? 'success' : investigationState === 'error' ? 'failure' : 'recorded'
+				});
 				incident = {
 					...incident,
-					investigation_state: 'done',
+					investigation_state: investigationState,
 					investigation_updated_at: new Date().toISOString(),
 					investigation_last_error: null
 				};
@@ -408,6 +449,20 @@
 		es.addEventListener('postmortem_delta', (ev) => {
 			const data = JSON.parse((ev as MessageEvent).data) as { delta?: string };
 			postmortemMarkdown += data.delta ?? '';
+			postmortemDraft = postmortemMarkdown;
+		});
+
+		es.addEventListener('postmortem_saved', (ev) => {
+			const data = JSON.parse((ev as MessageEvent).data) as {
+				memory_entry_id?: number;
+				markdown?: string;
+			};
+			postmortemMemoryEntryId =
+				typeof data.memory_entry_id === 'number' ? data.memory_entry_id : postmortemMemoryEntryId;
+			if (typeof data.markdown === 'string') {
+				postmortemMarkdown = data.markdown;
+				postmortemDraft = data.markdown;
+			}
 		});
 
 		es.addEventListener('done', () => {
@@ -432,10 +487,63 @@
 		});
 	}
 
+	async function savePostmortem() {
+		if (!postmortemMemoryEntryId) return;
+		postmortemSaving = true;
+		postmortemError = '';
+		try {
+			const res = await fetch(`${API_BASE}/memory/${postmortemMemoryEntryId}`, {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					body_markdown: postmortemDraft
+				})
+			});
+			if (!res.ok) throw new Error(`Failed to save postmortem (${res.status})`);
+			const payload = (await res.json()) as { memory?: MemoryEntry };
+			if (payload.memory) {
+				postmortemMarkdown = payload.memory.body_markdown;
+				postmortemDraft = payload.memory.body_markdown;
+			}
+		} catch (err) {
+			postmortemError = err instanceof Error ? err.message : 'Failed to save postmortem';
+		} finally {
+			postmortemSaving = false;
+		}
+	}
+
+	async function markInvestigationDone() {
+		if (!incident || incident.investigation_state === 'done') return;
+		try {
+			const res = await fetch(`${API_BASE}/incidents/${incident.id}/investigation`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ state: 'done' })
+			});
+			if (!res.ok) throw new Error(`Failed to mark done (${res.status})`);
+			incident = {
+				...incident,
+				investigation_state: 'done',
+				investigation_updated_at: new Date().toISOString(),
+				investigation_last_error: null
+			};
+		} catch (err) {
+			streamError = err instanceof Error ? err.message : 'Failed to mark done';
+		}
+	}
+
 	function runSelectedAction(value: string) {
 		const selected = actionOptions.find((option) => option.id === value);
 		if (!selected || streamState === 'running') return;
 		selectedActionId = value;
+		if (incident) {
+			void recordRlEvent({
+				incident_id: incident.id,
+				incident_title: incident.title,
+				action_type: selected.label,
+				outcome: 'pending'
+			});
+		}
 		startStream({
 			rerun: true,
 			action: selected.label,
@@ -463,12 +571,14 @@
 				reasoningMarkdown = '';
 				setActionOptions([], false);
 				selectedActionId = '';
+				postmortemState = 'idle';
+				postmortemMarkdown = '';
+				postmortemDraft = '';
+				postmortemError = '';
+				postmortemMemoryEntryId = null;
 			}
 			sessionHydrated = true;
 			streamState = 'idle';
-			postmortemState = 'idle';
-			postmortemMarkdown = '';
-			postmortemError = '';
 			await loadMemory();
 		} catch (err) {
 			error = err instanceof Error ? err.message : 'Failed to load incident';
@@ -522,6 +632,14 @@
 						Start investigation
 					{/if}
 				</Button>
+				<Button
+					variant="outline"
+					onclick={markInvestigationDone}
+					disabled={!incident || incident.investigation_state === 'done' || streamState === 'running'}
+				>
+					<CheckCircle2 class="size-4" />
+					Mark done
+				</Button>
 			</div>
 		</div>
 
@@ -539,7 +657,7 @@
 			</div>
 		{:else if incident}
 			<div class="space-y-5">
-				<div class="rounded-md border border-[rgba(255,255,255,0.18)]">
+				<div class="rounded-md border border-[rgba(255,255,255,0.18)]" transition:fade={{ duration: 180 }}>
 					<Table.Root>
 						<Table.Header>
 							<Table.Row>
@@ -581,6 +699,8 @@
 					</Table.Root>
 				</div>
 
+				<LlmToolsPanel />
+
 				{#if incident.investigation_last_error}
 					<p class="text-sm text-red-400">{incident.investigation_last_error}</p>
 				{/if}
@@ -590,7 +710,17 @@
 					class="min-h-[460px] w-full rounded-lg border border-[rgba(255,255,255,0.18)]"
 				>
 					<Resizable.Pane defaultSize={50}>
-						<LiveReasoningPane {streamState} {streamError} {reasoningMarkdown} />
+						<LiveReasoningPane
+							{streamState}
+							{streamError}
+							{reasoningMarkdown}
+							keywordHighlights={[
+								{ term: 'Executing action', className: 'reason-keyword-pulse' },
+								{ term: 'root cause', className: 'reason-keyword' },
+								{ term: 'mitigation', className: 'reason-keyword' },
+								{ term: 'validation', className: 'reason-keyword' }
+							]}
+						/>
 					</Resizable.Pane>
 
 					<Resizable.Handle withHandle />
@@ -612,7 +742,7 @@
 				</Resizable.PaneGroup>
 
 				{#if actionOptions.length > 0}
-					<div class="space-y-3 rounded-lg border border-[rgba(255,255,255,0.18)] p-4">
+					<div class="space-y-3 rounded-lg border border-[rgba(255,255,255,0.18)] p-4" transition:fade={{ duration: 220 }}>
 						<div>
 							<h3 class="font-serif text-xl italic tracking-tight">Recommended actions</h3>
 							<p class="text-sm text-muted-foreground">
@@ -644,11 +774,15 @@
 					</div>
 				{/if}
 
-				{#if streamState === 'done' || postmortemState !== 'idle'}
+				{#if incident.investigation_state === 'done' || postmortemState !== 'idle'}
 					<PostmortemPanel
-						state={postmortemState}
+						panelState={postmortemState}
 						content={postmortemMarkdown}
 						error={postmortemError}
+						editValue={postmortemDraft}
+						isSaving={postmortemSaving}
+						onEditInput={(value) => (postmortemDraft = value)}
+						onSave={savePostmortem}
 						onCreate={startPostmortemStream}
 					/>
 				{/if}

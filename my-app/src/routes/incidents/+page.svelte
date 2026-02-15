@@ -371,8 +371,9 @@
 
 <main class="bg-background min-h-svh px-6 pb-14 pt-24 md:px-10 md:pb-20 md:pt-28">
 	<section class="mx-auto w-full max-w-6xl space-y-8">
-		<header>
+		<header class="flex flex-wrap items-center justify-between gap-4">
 			<h1 class="font-serif text-5xl italic tracking-tight md:text-6xl">Incidents for {projectName}</h1>
+			<Button href="/rl" variant="outline">RL dataset</Button>
 		</header>
 
 		{#if loading}
