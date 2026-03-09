@@ -1,14 +1,13 @@
 <script>
 	import { Button } from '$lib/components/ui/button/index.js';
 	import { Input } from '$lib/components/ui/input/index.js';
-	import { Play, ArrowRight, Check, Loader2, Pause } from '@lucide/svelte';
+	import { Play, ArrowRight, Check, Loader2 } from '@lucide/svelte';
 
-	// Demo video: set to a YouTube embed URL (e.g. 'https://www.youtube.com/embed/VIDEO_ID') to use iframe,
-	// or leave empty to use self-hosted /reflex-demo.mp4 (put the file in my-app/static/)
-	const DEMO_YOUTUBE_EMBED_URL = '';
-	const DEMO_VIDEO_SRC = '/reflex-demo.mp4';
-	let demoVideoEl;
-	let demoPlaying = $state(false);
+	// Demo video: replace with your YouTube video ID if needed
+	const DEMO_YOUTUBE_VIDEO_ID = 'jNQXAC9IVRw';
+	const DEMO_YOUTUBE_EMBED_URL = DEMO_YOUTUBE_VIDEO_ID
+		? `https://www.youtube.com/embed/${DEMO_YOUTUBE_VIDEO_ID}?modestbranding=1&rel=0`
+		: '';
 	import { onMount } from 'svelte';
 	import { gsap } from 'gsap';
 	import { toast } from 'svelte-sonner';
@@ -258,61 +257,31 @@
 		</h2>
 
 		<div class="grid items-center gap-12 lg:grid-cols-[1fr_280px] lg:gap-16">
-			<!-- Demo video: self-hosted or YouTube embed -->
-			<div use:reveal={100} class="relative aspect-video w-full overflow-hidden border border-[rgba(255,255,255,0.06)] bg-[#0a0a10]">
+			<!-- Demo: YouTube embed in terminal-style frame -->
+			<div use:reveal={100} class="relative aspect-video w-full overflow-hidden rounded-sm border border-[rgba(255,255,255,0.06)] bg-[#0a0a10] shadow-[0_0_0_1px_rgba(255,255,255,0.02)]">
 				<!-- Terminal chrome -->
-				<div class="absolute top-0 left-0 right-0 z-10 flex items-center gap-1.5 border-b border-[rgba(255,255,255,0.04)] px-4 py-2.5">
+				<div class="absolute top-0 left-0 right-0 z-10 flex items-center gap-1.5 border-b border-[rgba(255,255,255,0.04)] bg-[#0a0a10]/95 px-4 py-2.5 backdrop-blur-sm">
 					<div class="size-2 rounded-full bg-[rgba(255,255,255,0.08)]"></div>
 					<div class="size-2 rounded-full bg-[rgba(255,255,255,0.08)]"></div>
 					<div class="size-2 rounded-full bg-[rgba(255,255,255,0.08)]"></div>
-					<span class="ml-3 text-[0.6rem] tracking-wider text-muted-foreground/30 uppercase">reflex-demo</span>
+					<span class="ml-3 text-[0.6rem] tracking-wider text-muted-foreground/50 uppercase">reflex · demo</span>
 				</div>
 
 				{#if DEMO_YOUTUBE_EMBED_URL}
-					<!-- YouTube embed -->
 					<iframe
-						class="absolute inset-0 h-full w-full pt-10"
+						class="absolute inset-0 h-full w-full pt-[2.5rem]"
 						title="Reflex demo video"
-						src={DEMO_YOUTUBE_EMBED_URL + (DEMO_YOUTUBE_EMBED_URL.includes('?') ? '&' : '?') + 'autoplay=0'}
-						allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+						src={DEMO_YOUTUBE_EMBED_URL}
+						allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
 						allowfullscreen
+						loading="lazy"
 					></iframe>
 				{:else}
-					<!-- Self-hosted video (put reflex-demo.mp4 in my-app/static/) -->
-					<video
-						bind:this={demoVideoEl}
-						class="absolute inset-0 h-full w-full object-cover pt-10"
-						poster=""
-						playsinline
-						onplay={() => (demoPlaying = true)}
-						onpause={() => (demoPlaying = false)}
-						onended={() => (demoPlaying = false)}
-					>
-						<source src={DEMO_VIDEO_SRC} type="video/mp4" />
-						<track kind="captions" />
-					</video>
-					<!-- Play / Pause overlay -->
-					<button
-						class="absolute inset-0 flex items-center justify-center pt-10 transition-opacity duration-200 {demoPlaying ? 'bg-black/20 opacity-90' : ''}"
-						aria-label={demoPlaying ? 'Pause' : 'Play demo'}
-						data-cursor={demoPlaying ? 'Pause' : 'Play demo'}
-						onclick={() => {
-							if (!demoVideoEl) return;
-							if (demoPlaying) {
-								demoVideoEl.pause();
-							} else {
-								demoVideoEl.play();
-							}
-						}}
-					>
-						<div class="group flex size-16 items-center justify-center border border-[rgba(255,255,255,0.08)] bg-[rgba(255,255,255,0.02)] transition-all duration-300 hover:border-primary/30 hover:bg-primary/5">
-							{#if demoPlaying}
-								<Pause class="size-5 text-muted-foreground transition-colors group-hover:text-primary" />
-							{:else}
-								<Play class="size-5 text-muted-foreground transition-colors group-hover:text-primary" />
-							{/if}
-						</div>
-					</button>
+					<div class="absolute inset-0 flex items-center justify-center pt-[2.5rem] text-center">
+						<p class="max-w-[18rem] text-xs text-muted-foreground/70">
+							Set <code class="rounded bg-white/5 px-1.5 py-0.5 font-mono text-[0.65rem]">DEMO_YOUTUBE_VIDEO_ID</code> in <code class="rounded bg-white/5 px-1.5 py-0.5 font-mono text-[0.65rem]">+page.svelte</code> to your YouTube video ID.
+						</p>
+					</div>
 				{/if}
 			</div>
 
