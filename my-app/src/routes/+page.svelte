@@ -284,9 +284,9 @@
 						class="absolute inset-0 h-full w-full object-cover pt-10"
 						poster=""
 						playsinline
-						on:play={() => (demoPlaying = true)}
-						on:pause={() => (demoPlaying = false)}
-						on:ended={() => (demoPlaying = false)}
+						onplay={() => (demoPlaying = true)}
+						onpause={() => (demoPlaying = false)}
+						onended={() => (demoPlaying = false)}
 					>
 						<source src={DEMO_VIDEO_SRC} type="video/mp4" />
 						<track kind="captions" />
@@ -296,7 +296,7 @@
 						class="absolute inset-0 flex items-center justify-center pt-10 transition-opacity duration-200 {demoPlaying ? 'bg-black/20 opacity-90' : ''}"
 						aria-label={demoPlaying ? 'Pause' : 'Play demo'}
 						data-cursor={demoPlaying ? 'Pause' : 'Play demo'}
-						on:click={() => {
+						onclick={() => {
 							if (!demoVideoEl) return;
 							if (demoPlaying) {
 								demoVideoEl.pause();
