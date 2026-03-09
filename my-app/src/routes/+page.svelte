@@ -3,8 +3,8 @@
 	import { Input } from '$lib/components/ui/input/index.js';
 	import { Play, ArrowRight, Check, Loader2 } from '@lucide/svelte';
 
-	// Demo video: replace with your YouTube video ID if needed
-	const DEMO_YOUTUBE_VIDEO_ID = 'jNQXAC9IVRw';
+	// Demo video
+	const DEMO_YOUTUBE_VIDEO_ID = 'xyUjgX2K_1Y';
 	const DEMO_YOUTUBE_EMBED_URL = DEMO_YOUTUBE_VIDEO_ID
 		? `https://www.youtube.com/embed/${DEMO_YOUTUBE_VIDEO_ID}?modestbranding=1&rel=0`
 		: '';
